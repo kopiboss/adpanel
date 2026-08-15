@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"time"
 
 	"adpanel/models"
 )
@@ -279,17 +280,46 @@ func UploadVideoResumable(accessToken, adAccountID, filePath string, creative *m
 		finalVideoID = videoID
 	}
 
-	// ── Get thumbnail ─────────────────────────────────────────────────────────
+	// ── Get thumbnail (retry karena Meta butuh waktu proses) ──────────────────
 	thumbnail := ""
-	thumbURL := fmt.Sprintf("%s/%s/%s?fields=picture&access_token=%s",
-		metaAPIBase, metaAPIVersion, finalVideoID, accessToken)
-	if thumbResp, err := http.Get(thumbURL); err == nil {
-		defer thumbResp.Body.Close()
-		var thumbResult struct {
-			Picture string `json:"picture"`
+	for i := 0; i < 5; i++ {
+		thumbURL := fmt.Sprintf("%s/%s/%s?fields=picture,thumbnails&access_token=%s",
+			metaAPIBase, metaAPIVersion, finalVideoID, accessToken)
+		if thumbResp, err := http.Get(thumbURL); err == nil {
+			var thumbResult struct {
+				Picture    string `json:"picture"`
+				Thumbnails struct {
+					Data []struct {
+						URI    string `json:"uri"`
+						Height int    `json:"height"`
+						Width  int    `json:"width"`
+					} `json:"data"`
+				} `json:"thumbnails"`
+			}
+			if json.NewDecoder(thumbResp.Body).Decode(&thumbResult) == nil {
+				thumbResp.Body.Close()
+				// Pilih thumbnail terbesar
+				if thumbResult.Picture != "" {
+					thumbnail = thumbResult.Picture
+					break
+				}
+				for _, t := range thumbResult.Thumbnails.Data {
+					if t.URI != "" {
+						thumbnail = t.URI
+						break
+					}
+				}
+				if thumbnail != "" {
+					break
+				}
+			} else {
+				thumbResp.Body.Close()
+			}
 		}
-		if json.NewDecoder(thumbResp.Body).Decode(&thumbResult) == nil {
-			thumbnail = thumbResult.Picture
+		// Tunggu sebelum retry
+		if i < 4 {
+			waitSeconds := []int{3, 5, 10, 15}
+			time.Sleep(time.Duration(waitSeconds[i]) * time.Second)
 		}
 	}
 
@@ -317,4 +347,39 @@ func ProcessVideoUpload(creative *models.Creative, accessToken, adAccountID, tem
 	if err := UploadVideoResumable(accessToken, adAccountID, tempFilePath, creative); err != nil {
 		_ = models.UpdateCreativeStatus(creative.ID, "failed", err.Error())
 	}
+}
+
+// FetchVideoThumbnail mengambil thumbnail URL untuk video yang sudah ada di Meta
+func FetchVideoThumbnail(accessToken, videoID string) (string, error) {
+	thumbURL := fmt.Sprintf("%s/%s/%s?fields=picture,thumbnails&access_token=%s",
+		metaAPIBase, metaAPIVersion, videoID, accessToken)
+
+	resp, err := http.Get(thumbURL)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Picture    string `json:"picture"`
+		Thumbnails struct {
+			Data []struct {
+				URI string `json:"uri"`
+			} `json:"data"`
+		} `json:"thumbnails"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+
+	if result.Picture != "" {
+		return result.Picture, nil
+	}
+	for _, t := range result.Thumbnails.Data {
+		if t.URI != "" {
+			return t.URI, nil
+		}
+	}
+	return "", nil
 }
