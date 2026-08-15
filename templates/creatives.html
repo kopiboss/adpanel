@@ -291,8 +291,10 @@ function creativesApp() {
                     u.creativeID = data.creative_id;
                 }
 
-                // Start polling Meta processing status
-                this.startPolling(uid, data.creative_id);
+                // Tunggu 3 detik sebelum polling - beri waktu DB commit
+                setTimeout(() => {
+                    this.startPolling(uid, data.creative_id);
+                }, 3000);
 
             } catch (err) {
                 const u = item();
@@ -324,7 +326,8 @@ function creativesApp() {
                     const r = await fetch('/creatives/' + creativeID + '/status');
 
                     if (r.status === 404) {
-                        // Creative not found yet, keep waiting
+                        // Record belum ada di DB, tunggu
+                        if (u.progress < 90) u.progress = Math.min(90, u.progress + 2);
                         return;
                     }
 
