@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -321,4 +322,106 @@ func copyFile(src, dst string) error {
 	defer out.Close()
 	_, err = out.ReadFrom(in)
 	return err
+}
+
+// RefreshCreativeThumbnail - fetch ulang thumbnail dari Meta untuk video yang sudah done
+func RefreshCreativeThumbnail(c *gin.Context) {
+	userID := middleware.GetCurrentUserID(c)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	creative, err := models.GetCreativeByID(id, userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Creative tidak ditemukan"})
+		return
+	}
+
+	if creative.MetaVideoID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Creative ini tidak memiliki video ID"})
+		return
+	}
+
+	account, err := models.GetAdAccountByID(creative.AdAccountID, userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Ad account tidak ditemukan"})
+		return
+	}
+
+	cred, err := models.GetCredentialByIDAdmin(account.CredentialID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal load kredensial"})
+		return
+	}
+
+	accessToken, err := services.Decrypt(cred.AccessTokenEnc)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal dekripsi token"})
+		return
+	}
+
+	thumbnail, err := services.FetchVideoThumbnail(accessToken, creative.MetaVideoID)
+	if err != nil || thumbnail == "" {
+		c.JSON(http.StatusOK, gin.H{"message": "Thumbnail belum tersedia, coba lagi nanti", "thumbnail_url": ""})
+		return
+	}
+
+	_ = models.UpdateCreativeAfterUpload(creative.ID, "", creative.MetaVideoID, thumbnail, "done")
+	c.JSON(http.StatusOK, gin.H{"thumbnail_url": thumbnail, "message": "Thumbnail berhasil diperbarui"})
+}
+
+// ProxyThumbnail - proxy thumbnail dari Meta CDN agar bisa ditampilkan di browser
+// tanpa CORS/hotlink block
+func ProxyThumbnail(c *gin.Context) {
+	userID := middleware.GetCurrentUserID(c)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+
+	creative, err := models.GetCreativeByID(id, userID)
+	if err != nil {
+		creative, err = models.GetCreativeByIDOnly(id)
+		if err != nil || creative.UserID != userID {
+			c.Status(http.StatusNotFound)
+			return
+		}
+	}
+
+	if creative.ThumbnailURL == "" {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	// Fetch dari Meta CDN
+	req, err := http.NewRequest(http.MethodGet, creative.ThumbnailURL, nil)
+	if err != nil {
+		c.Status(http.StatusBadGateway)
+		return
+	}
+	// Set headers agar fbcdn mau serve
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; AdPanel/1.0)")
+	req.Header.Set("Referer", "https://www.facebook.com/")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		c.Status(http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Teruskan content-type dan body
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "image/jpeg"
+	}
+
+	// Cache 1 jam
+	c.Header("Cache-Control", "public, max-age=3600")
+	c.Header("Content-Type", contentType)
+	c.Status(http.StatusOK)
+	io.Copy(c.Writer, resp.Body)
 }
