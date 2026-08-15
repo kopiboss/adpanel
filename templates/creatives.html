@@ -1,163 +1,24 @@
 {{ define "content" }}
-<div x-data="{
-    uploads: [],
-    accounts: {{ .accounts | js }},
-    selectedAccountID: {{ if .account_id }}{{ .account_id }}{{ else }}0{{ end }},
+<div x-data="creativesApp()" x-init="init()" class="space-y-5">
 
-    addUpload(name, size, type){
-        const id = Date.now();
-        this.uploads.push({id, name, size, type, progress:0, status:'waiting', creativeID:null, error:''});
-        return id;
-    },
+    <!-- Toolbar -->
+    <div class="flex items-center gap-3 flex-wrap">
+        <select x-model="selectedAccountID" class="input" style="width:auto;min-width:220px">
+            <option value="">Pilih Ad Account</option>
+            {{ range .accounts }}
+            <option value="{{ .ID }}">{{ .Name }}</option>
+            {{ end }}
+        </select>
 
-    updateUpload(id, data){ const u=this.uploads.find(u=>u.id===id); if(u)Object.assign(u,data) },
-
-    formatBytes(b){ if(b<1024)return b+'B'; if(b<1048576)return (b/1024).toFixed(1)+'KB'; if(b<1073741824)return (b/1048576).toFixed(1)+'MB'; return (b/1073741824).toFixed(2)+'GB' },
-
-    async handleFiles(files){
-        if(!this.selectedAccountID){ swalError('Pilih ad account dulu'); return }
-        for(const file of files){ await this.uploadFile(file) }
-    },
-
-    async uploadFile(file){
-        const ext = file.name.split('.').pop().toLowerCase();
-        const allowed = ['jpg','jpeg','png','mp4'];
-        if(!allowed.includes(ext)){ swalError('Format tidak didukung: '+file.name); return }
-        const isVideo = ext==='mp4';
-        const maxSize = isVideo ? 1073741824 : 31457280;
-        if(file.size > maxSize){ swalError(file.name+' terlalu besar. Max: '+(isVideo?'1GB':'30MB')); return }
-
-        const uploadID = this.addUpload(file.name, file.size, isVideo?'video':'image');
-
-        const fd = new FormData();
-        fd.append('file', file);
-        fd.append('ad_account_id', this.selectedAccountID);
-
-        this.updateUpload(uploadID, {status:'uploading', progress:5});
-
-        try {
-            // Simulate progress for better UX (actual upload di backend)
-            const progressInterval = setInterval(()=>{
-                const u = this.uploads.find(u=>u.id===uploadID);
-                if(u && u.progress < 85 && u.status==='uploading'){
-                    u.progress = Math.min(85, u.progress + (isVideo?2:10));
-                }
-            }, isVideo?800:200);
-
-            const r = await fetch('/creatives/upload', {method:'POST', body:fd});
-            clearInterval(progressInterval);
-            const d = await r.json();
-
-            if(r.ok){
-                this.updateUpload(uploadID, {progress:90, status:'processing', creativeID:d.creative_id});
-                this.pollStatus(uploadID, d.creative_id);
-            } else {
-                this.updateUpload(uploadID, {status:'error', progress:0, error:d.error||'Gagal upload'});
-                swalError(d.error||'Gagal upload '+file.name);
-            }
-        } catch(e){
-            this.updateUpload(uploadID, {status:'error', progress:0, error:'Network error'});
-        }
-    },
-
-    pollStatus(uploadID, creativeID){
-        const iv = setInterval(async()=>{
-            try {
-                const r = await fetch('/creatives/'+creativeID+'/status');
-                const d = await r.json();
-                if(d.upload_status==='done'){
-                    clearInterval(iv);
-                    this.updateUpload(uploadID, {status:'done', progress:100});
-                    swalSuccess('Upload selesai: '+this.uploads.find(u=>u.id===uploadID)?.name);
-                    setTimeout(()=>location.reload(), 2000);
-                } else if(d.upload_status==='failed'){
-                    clearInterval(iv);
-                    this.updateUpload(uploadID, {status:'error', progress:0, error:d.error_message||'Upload ke Meta gagal'});
-                    swalError('Upload gagal: '+d.error_message);
-                } else {
-                    this.updateUpload(uploadID, {progress:Math.min(99, (this.uploads.find(u=>u.id===uploadID)?.progress||90)+1)});
-                }
-            } catch(e){ clearInterval(iv) }
-        }, 3000);
-    },
-
-    drag:false
-}" class="space-y-5"
-    @dragover.prevent="drag=true" @dragleave.prevent="drag=false"
-    @drop.prevent="drag=false;handleFiles($event.dataTransfer.files)">
-
-    <div class="flex items-center justify-between flex-wrap gap-3">
-        <div class="flex items-center gap-3">
-            <select x-model="selectedAccountID" class="input" style="width:auto">
-                <option value="0">Pilih Ad Account</option>
-                <template x-for="acc in accounts" :key="acc.id">
-                    <option :value="acc.id" x-text="acc.name"></option>
-                </template>
-            </select>
-        </div>
-        <label :class="drag?'border-blue-500 bg-blue-500/10':''" class="btn btn-primary cursor-pointer">
+        <label :class="!selectedAccountID?'opacity-40 cursor-not-allowed':'cursor-pointer'" class="btn btn-primary">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
             Upload File
-            <input type="file" class="hidden" multiple accept=".jpg,.jpeg,.png,.mp4" @change="handleFiles($event.target.files);$event.target.value=''">
+            <input type="file" class="hidden" multiple accept=".jpg,.jpeg,.png,.mp4"
+                :disabled="!selectedAccountID"
+                @change="if(selectedAccountID){handleFiles($event.target.files);$event.target.value=''}else{swalError('Pilih ad account dulu')}">
         </label>
-    </div>
 
-    <!-- Drop zone hint -->
-    <div :class="drag?'border-blue-500 bg-blue-500/5':'border-white/8'" class="border-2 border-dashed rounded-2xl py-8 text-center transition-all">
-        <svg class="w-8 h-8 mx-auto mb-2" :class="drag?'text-blue-400':''" style="color:var(--text-muted)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-        <p class="text-sm text-slate-500">Drag & drop atau <label class="text-blue-400 hover:text-blue-300 cursor-pointer">klik upload<input type="file" class="hidden" multiple accept=".jpg,.jpeg,.png,.mp4" @change="handleFiles($event.target.files);$event.target.value=''"></label></p>
-        <p class="text-xs mt-1" style="color:var(--text-muted)">JPG/PNG max 30MB · MP4 max 1GB · Bisa upload banyak sekaligus</p>
-    </div>
-
-    <!-- Upload queue -->
-    <div x-show="uploads.length>0" x-cloak class="card overflow-hidden">
-        <div class="px-5 py-3 border-b flex items-center justify-between" style="border-color:var(--border)">
-            <h3 class="text-sm font-semibold text-white">Antrian Upload</h3>
-            <button @click="uploads=uploads.filter(u=>u.status!=='done'&&u.status!=='error')" class="text-xs" style="color:var(--text-sub)">Bersihkan selesai</button>
-        </div>
-        <div class="divide-y" style="divide-color:var(--border)">
-            <template x-for="u in uploads" :key="u.id">
-                <div class="px-5 py-4">
-                    <div class="flex items-start gap-3">
-                        <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-base" :style="u.type==='video'?'background:rgba(139,92,246,0.15)':'background:rgba(59,130,246,0.15)'">
-                            <span x-text="u.type==='video'?'🎬':'🖼'"></span>
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center justify-between mb-1">
-                                <p class="text-sm text-white font-medium truncate" x-text="u.name"></p>
-                                <div class="flex items-center gap-2 flex-shrink-0 ml-2">
-                                    <span class="text-xs" style="color:var(--text-sub)" x-text="formatBytes(u.size)"></span>
-                                    <span :class="{
-                                        'badge-gray':u.status==='waiting',
-                                        'badge-blue':u.status==='uploading'||u.status==='processing',
-                                        'badge-green':u.status==='done',
-                                        'badge-red':u.status==='error'
-                                    }" class="badge text-xs" x-text="{waiting:'Menunggu',uploading:'Uploading',processing:'Memproses',done:'Selesai',error:'Error'}[u.status]||u.status"></span>
-                                </div>
-                            </div>
-                            <!-- Progress bar -->
-                            <div x-show="u.status==='uploading'||u.status==='processing'" class="mt-1.5">
-                                <div class="flex items-center justify-between mb-1">
-                                    <p class="text-xs" style="color:var(--text-sub)" x-text="u.status==='uploading'?'Mengunggah ke server...':'Memproses ke Meta...'"></p>
-                                    <span class="text-xs text-blue-400" x-text="u.progress+'%'"></span>
-                                </div>
-                                <div class="h-1.5 rounded-full overflow-hidden" style="background:rgba(255,255,255,0.06)">
-                                    <div class="h-full rounded-full transition-all duration-500" style="background:linear-gradient(90deg,#2563eb,#7c3aed)"
-                                        :style="'width:'+u.progress+'%'"></div>
-                                </div>
-                            </div>
-                            <p x-show="u.status==='error'" class="text-xs text-red-400 mt-1" x-text="u.error"></p>
-                            <p x-show="u.status==='done'" class="text-xs text-green-400 mt-1">✓ Berhasil diupload ke Meta Ads</p>
-                        </div>
-                    </div>
-                </div>
-            </template>
-        </div>
-    </div>
-
-    <!-- Creative grid -->
-    <div class="flex items-center justify-between">
-        <select onchange="window.location.href='?account_id='+this.value" class="input" style="width:auto">
+        <select onchange="window.location.href='?account_id='+this.value" class="input ml-auto" style="width:auto">
             <option value="">Semua Akun</option>
             {{ range .accounts }}
             <option value="{{ .ID }}" {{ if eq $.account_id .ID }}selected{{ end }}>{{ .Name }}</option>
@@ -166,36 +27,149 @@
         <span class="text-xs" style="color:var(--text-sub)">{{ len .creatives }} creative</span>
     </div>
 
+    <!-- Drop zone -->
+    <div @dragover.prevent="drag=true" @dragleave.prevent="drag=false"
+        @drop.prevent="drag=false; if(selectedAccountID){handleFiles($event.dataTransfer.files)}else{swalError('Pilih ad account dulu')}"
+        :class="drag?'border-blue-500 bg-blue-500/8 scale-[1.01]':'border-white/8 hover:border-white/15'"
+        class="border-2 border-dashed rounded-2xl py-10 text-center transition-all duration-200 cursor-pointer"
+        @click="if(selectedAccountID){$el.querySelector('input').click()}else{swalError('Pilih ad account dulu')}">
+        <input type="file" class="hidden" multiple accept=".jpg,.jpeg,.png,.mp4"
+            @change="if(selectedAccountID){handleFiles($event.target.files);$event.target.value=''}">
+        <svg class="w-8 h-8 mx-auto mb-3 transition-colors" :class="drag?'text-blue-400':''" style="color:var(--text-muted)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+        </svg>
+        <p class="text-sm font-medium" :class="drag?'text-blue-400':'text-slate-400'">Drag & drop file di sini</p>
+        <p class="text-xs mt-1" style="color:var(--text-muted)">JPG/PNG max 30MB · MP4 max 1GB · Bisa pilih banyak file</p>
+    </div>
+
+    <!-- Upload Queue -->
+    <div x-show="queue.length > 0" x-cloak class="card overflow-hidden">
+        <div class="px-5 py-3 border-b flex items-center justify-between" style="border-color:var(--border)">
+            <div class="flex items-center gap-3">
+                <h3 class="text-sm font-semibold text-white">Antrian Upload</h3>
+                <span class="badge badge-blue text-xs" x-text="queue.filter(u=>u.status==='uploading'||u.status==='processing').length + ' aktif'"></span>
+            </div>
+            <button @click="queue=queue.filter(u=>u.status!=='done'&&u.status!=='error')"
+                class="text-xs hover:text-slate-300 transition" style="color:var(--text-sub)">
+                Bersihkan selesai
+            </button>
+        </div>
+        <div class="divide-y" style="divide-color:var(--border)">
+            <template x-for="item in queue" :key="item.uid">
+                <div class="px-5 py-4">
+                    <div class="flex items-start gap-3">
+                        <!-- Icon -->
+                        <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base mt-0.5"
+                            :style="item.type==='video'?'background:rgba(139,92,246,0.15)':'background:rgba(59,130,246,0.15)'">
+                            <span x-text="item.type==='video'?'🎬':'🖼'"></span>
+                        </div>
+                        <!-- Content -->
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <p class="text-sm text-white font-medium truncate pr-4" x-text="item.name"></p>
+                                <div class="flex items-center gap-2 flex-shrink-0">
+                                    <span class="text-xs" style="color:var(--text-muted)" x-text="formatBytes(item.size)"></span>
+                                    <span class="badge text-xs"
+                                        :class="{
+                                            'badge-gray':item.status==='waiting',
+                                            'badge-blue':item.status==='uploading',
+                                            'badge-yellow':item.status==='processing',
+                                            'badge-green':item.status==='done',
+                                            'badge-red':item.status==='error'
+                                        }"
+                                        x-text="{waiting:'Menunggu',uploading:'Uploading',processing:'Memproses',done:'✓ Selesai',error:'✗ Gagal'}[item.status]||item.status">
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Progress bar -->
+                            <template x-if="item.status==='uploading'||item.status==='processing'">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-xs" style="color:var(--text-sub)"
+                                            x-text="item.status==='uploading'?'Mengunggah ke server...':'Memproses ke Meta Ads...'">
+                                        </span>
+                                        <span class="text-xs font-mono" :class="item.status==='processing'?'text-yellow-400':'text-blue-400'"
+                                            x-text="item.progress+'%'">
+                                        </span>
+                                    </div>
+                                    <div class="h-2 rounded-full overflow-hidden" style="background:rgba(255,255,255,0.06)">
+                                        <div class="h-full rounded-full transition-all duration-700"
+                                            :style="'width:'+item.progress+'%;background:'+(item.status==='processing'?'linear-gradient(90deg,#d97706,#f59e0b)':'linear-gradient(90deg,#2563eb,#7c3aed)')">
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Done -->
+                            <template x-if="item.status==='done'">
+                                <p class="text-xs text-green-400 mt-1">✓ Berhasil diupload dan siap digunakan di iklan</p>
+                            </template>
+
+                            <!-- Error -->
+                            <template x-if="item.status==='error'">
+                                <p class="text-xs text-red-400 mt-1" x-text="'✗ '+item.error"></p>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Creative Grid -->
     {{ if .creatives }}
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
         {{ range .creatives }}
-        <div class="card group overflow-hidden cursor-pointer hover:border-white/12 transition">
+        <div class="card group overflow-hidden hover:border-white/12 transition-colors" id="creative-{{ .ID }}">
             <div class="aspect-video relative overflow-hidden" style="background:#070c18">
                 {{ if .ThumbnailURL }}
                 <img src="{{ .ThumbnailURL }}" class="w-full h-full object-cover">
                 {{ else }}
-                <div class="w-full h-full flex items-center justify-center text-3xl">{{ if eq .Type "video" }}🎬{{ else }}🖼{{ end }}</div>
-                {{ end }}
-                <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition" style="background:rgba(0,0,0,0.65)">
-                    <button onclick="swalConfirm({title:'Hapus creative?',text:'{{ .Name }}'}).then(r=>{if(r.isConfirmed)fetch('/creatives/{{ .ID }}',{method:'DELETE'}).then(r=>r.json()).then(d=>{swalSuccess(d.message);this.closest('.card').remove()})})"
-                        class="btn btn-danger" style="font-size:11px;padding:4px 10px">Hapus</button>
+                <div class="w-full h-full flex items-center justify-center text-3xl">
+                    {{ if eq .Type "video" }}🎬{{ else }}🖼{{ end }}
                 </div>
+                {{ end }}
+                <!-- Hover overlay -->
+                <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    style="background:rgba(0,0,0,0.65)">
+                    <button onclick="
+                        swalConfirm({title:'Hapus creative ini?',html:'<span style=\'color:#94a3b8\'>{{ .Name }}</span>',icon:'warning'})
+                        .then(r=>{
+                            if(r.isConfirmed){
+                                fetch('/creatives/{{ .ID }}',{method:'DELETE'})
+                                .then(r=>r.json())
+                                .then(d=>{
+                                    swalSuccess(d.message);
+                                    document.getElementById('creative-{{ .ID }}').remove()
+                                })
+                            }
+                        })"
+                        class="btn btn-danger" style="font-size:11px;padding:4px 12px">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        Hapus
+                    </button>
+                </div>
+                <!-- Type badge -->
                 {{ if eq .Type "video" }}
                 <div class="absolute top-2 left-2">
-                    <span class="badge badge-blue" style="font-size:10px">VIDEO</span>
+                    <span class="badge badge-blue" style="font-size:10px;padding:1px 6px">VIDEO</span>
                 </div>
                 {{ end }}
             </div>
-            <div class="p-2.5">
-                <p class="text-xs font-medium text-white truncate">{{ .Name }}</p>
-                <div class="flex items-center justify-between mt-1">
-                    <span class="text-xs" style="color:var(--text-muted)">{{ .Type }}</span>
-                    <span id="status-{{ .ID }}" class="text-xs font-medium
+            <div class="p-3">
+                <p class="text-xs font-medium text-white truncate" title="{{ .Name }}">{{ .Name }}</p>
+                <div class="flex items-center justify-between mt-1.5">
+                    <span class="text-xs" style="color:var(--text-muted)">
+                        {{ if .FileSize }}{{ .FileSize }}B{{ end }}
+                    </span>
+                    <span class="text-xs font-medium
                         {{ if eq .UploadStatus "done" }}text-green-400
                         {{ else if eq .UploadStatus "failed" }}text-red-400
                         {{ else }}text-yellow-400{{ end }}">
-                        {{ if eq .UploadStatus "done" }}✓{{ else if eq .UploadStatus "failed" }}✗{{ else }}⟳{{ end }}
-                        {{ .UploadStatus }}
+                        {{ if eq .UploadStatus "done" }}✓ Siap
+                        {{ else if eq .UploadStatus "failed" }}✗ Gagal
+                        {{ else }}⟳ Proses{{ end }}
                     </span>
                 </div>
             </div>
@@ -204,10 +178,193 @@
     </div>
     {{ else }}
     <div class="card flex flex-col items-center justify-center py-20 text-center">
-        <svg class="w-10 h-10 mb-3" style="color:var(--text-muted)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <svg class="w-10 h-10 mb-3" style="color:var(--text-muted)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
         <p class="text-sm text-slate-500 font-medium">Belum ada creative</p>
         <p class="text-xs mt-1" style="color:var(--text-muted)">Upload gambar atau video untuk mulai beriklan</p>
     </div>
     {{ end }}
 </div>
+
+<script>
+function creativesApp() {
+    return {
+        selectedAccountID: '{{ if .account_id }}{{ .account_id }}{{ end }}',
+        queue: [],
+        drag: false,
+        uidCounter: 0,
+        pollingTimers: {},
+
+        init() {
+            // Set account dari query param jika ada
+        },
+
+        formatBytes(b) {
+            if (b < 1024) return b + 'B';
+            if (b < 1048576) return (b/1024).toFixed(1) + 'KB';
+            if (b < 1073741824) return (b/1048576).toFixed(1) + 'MB';
+            return (b/1073741824).toFixed(2) + 'GB';
+        },
+
+        async handleFiles(files) {
+            if (!this.selectedAccountID) {
+                swalError('Pilih ad account dulu');
+                return;
+            }
+            const fileArr = Array.from(files);
+            // Upload sequentially to avoid overload
+            for (const file of fileArr) {
+                await this.uploadFile(file);
+            }
+        },
+
+        async uploadFile(file) {
+            const ext = file.name.split('.').pop().toLowerCase();
+            const isVideo = ext === 'mp4';
+            const isImage = ['jpg','jpeg','png'].includes(ext);
+
+            if (!isVideo && !isImage) {
+                swalError('Format tidak didukung: ' + file.name + '. Gunakan JPG, PNG, atau MP4');
+                return;
+            }
+
+            const maxSize = isVideo ? 1073741824 : 31457280;
+            if (file.size > maxSize) {
+                swalError(file.name + ' terlalu besar. Max: ' + (isVideo ? '1GB' : '30MB'));
+                return;
+            }
+
+            // Add to queue
+            const uid = ++this.uidCounter;
+            this.queue.push({
+                uid,
+                name: file.name,
+                size: file.size,
+                type: isVideo ? 'video' : 'image',
+                progress: 0,
+                status: 'uploading',
+                error: '',
+                creativeID: null
+            });
+
+            const item = () => this.queue.find(u => u.uid === uid);
+
+            try {
+                // Simulate upload progress while real upload happens
+                let fakeProgress = 0;
+                const fakeInterval = setInterval(() => {
+                    const u = item();
+                    if (!u || u.status !== 'uploading') { clearInterval(fakeInterval); return; }
+                    // Slow progress: ramp up to 80% then stall
+                    const increment = isVideo ? 1 : 5;
+                    if (u.progress < 80) {
+                        u.progress = Math.min(80, u.progress + increment);
+                    }
+                }, isVideo ? 1000 : 300);
+
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('ad_account_id', this.selectedAccountID);
+
+                const response = await fetch('/creatives/upload', {
+                    method: 'POST',
+                    body: fd
+                });
+
+                clearInterval(fakeInterval);
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    const u = item();
+                    if (u) { u.status = 'error'; u.progress = 0; u.error = data.error || 'Upload gagal'; }
+                    swalError(data.error || 'Gagal upload ' + file.name);
+                    return;
+                }
+
+                // Upload to server done, now processing to Meta
+                const u = item();
+                if (u) {
+                    u.progress = 85;
+                    u.status = 'processing';
+                    u.creativeID = data.creative_id;
+                }
+
+                // Start polling Meta processing status
+                this.startPolling(uid, data.creative_id);
+
+            } catch (err) {
+                const u = item();
+                if (u) { u.status = 'error'; u.progress = 0; u.error = 'Koneksi gagal: ' + err.message; }
+            }
+        },
+
+        startPolling(uid, creativeID) {
+            if (!creativeID) {
+                const u = this.queue.find(u => u.uid === uid);
+                if (u) { u.status = 'error'; u.error = 'Creative ID tidak valid'; }
+                return;
+            }
+
+            let attempts = 0;
+            const maxAttempts = 120; // 10 menit max (120 * 5s)
+
+            const timer = setInterval(async () => {
+                attempts++;
+                const u = this.queue.find(u => u.uid === uid);
+
+                if (!u || attempts > maxAttempts) {
+                    clearInterval(timer);
+                    if (u) { u.status = 'error'; u.error = 'Timeout - cek status di halaman creatives'; }
+                    return;
+                }
+
+                try {
+                    const r = await fetch('/creatives/' + creativeID + '/status');
+
+                    if (r.status === 404) {
+                        // Creative not found yet, keep waiting
+                        return;
+                    }
+
+                    const d = await r.json();
+
+                    if (d.upload_status === 'done') {
+                        clearInterval(timer);
+                        u.status = 'done';
+                        u.progress = 100;
+                        swalSuccess('✓ ' + u.name + ' berhasil diupload!');
+                        // Refresh grid after 2s
+                        setTimeout(() => location.reload(), 2000);
+
+                    } else if (d.upload_status === 'failed') {
+                        clearInterval(timer);
+                        u.status = 'error';
+                        u.progress = 0;
+                        u.error = d.error_message || 'Upload ke Meta Ads gagal';
+                        swalError('Upload gagal: ' + u.name);
+
+                    } else {
+                        // Still processing - increment progress slowly
+                        if (u.progress < 99) u.progress = Math.min(99, u.progress + 1);
+                    }
+
+                } catch (err) {
+                    // Network error during polling, keep trying
+                    console.warn('Polling error, retrying...', err);
+                }
+
+            }, 5000); // Poll every 5 seconds
+
+            this.pollingTimers[uid] = timer;
+        },
+
+        beforeDestroy() {
+            // Cleanup all polling timers
+            Object.values(this.pollingTimers).forEach(t => clearInterval(t));
+        }
+    };
+}
+</script>
 {{ end }}
