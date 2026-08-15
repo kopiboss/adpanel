@@ -49,7 +49,9 @@ func GetCreativeByIDOnly(id uint64) (*Creative, error) {
 func ListCreativesByAdAccount(adAccountID, userID uint64) ([]Creative, error) {
 	var creatives []Creative
 	err := database.DB.Select(&creatives,
-		"SELECT * FROM creatives WHERE ad_account_id = ? AND user_id = ? ORDER BY created_at DESC",
+		`SELECT c.*, aa.name AS ad_account_name FROM creatives c
+		 JOIN ad_accounts aa ON c.ad_account_id = aa.id
+		 WHERE c.ad_account_id = ? AND c.user_id = ? ORDER BY c.created_at DESC`,
 		adAccountID, userID)
 	return creatives, err
 }
