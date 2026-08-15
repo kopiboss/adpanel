@@ -325,12 +325,6 @@ function creativesApp() {
                 try {
                     const r = await fetch('/creatives/' + creativeID + '/status');
 
-                    if (r.status === 404) {
-                        // Record belum ada di DB, tunggu
-                        if (u.progress < 90) u.progress = Math.min(90, u.progress + 2);
-                        return;
-                    }
-
                     const d = await r.json();
 
                     if (d.upload_status === 'done') {
