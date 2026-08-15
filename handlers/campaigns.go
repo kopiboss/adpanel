@@ -17,13 +17,51 @@ import (
 
 func ListCampaigns(c *gin.Context) {
 	userID := middleware.GetCurrentUserID(c)
-
 	accounts, _ := models.ListActiveAdAccountsByUser(userID)
 	templates, _ := models.ListTemplatesByUser(userID)
 
 	accountID := uint64(0)
 	if accIDStr := c.Query("account_id"); accIDStr != "" {
 		accountID, _ = strconv.ParseUint(accIDStr, 10, 64)
+	}
+
+	// Date range — default hari ini WIB
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	nowWIB := time.Now().In(loc)
+
+	dateRange := c.Query("range")
+	if dateRange == "" {
+		dateRange = "today"
+	}
+
+	var dateFrom, dateTo string
+	today := nowWIB.Format("2006-01-02")
+	switch dateRange {
+	case "today":
+		dateFrom = today
+		dateTo = today
+	case "yesterday":
+		yesterday := nowWIB.AddDate(0, 0, -1).Format("2006-01-02")
+		dateFrom = yesterday
+		dateTo = yesterday
+	case "7d":
+		dateFrom = nowWIB.AddDate(0, 0, -7).Format("2006-01-02")
+		dateTo = today
+	case "30d":
+		dateFrom = nowWIB.AddDate(0, 0, -30).Format("2006-01-02")
+		dateTo = today
+	case "custom":
+		dateFrom = c.Query("date_from")
+		dateTo = c.Query("date_to")
+		if dateFrom == "" {
+			dateFrom = today
+		}
+		if dateTo == "" {
+			dateTo = today
+		}
+	default:
+		dateFrom = today
+		dateTo = today
 	}
 
 	var campaigns []models.Campaign
@@ -37,13 +75,11 @@ func ListCampaigns(c *gin.Context) {
 		campaigns = []models.Campaign{}
 	}
 
-	// Buat map accountID → currency untuk format budget di template
+	// Currency map per account
 	accountCurrency := make(map[uint64]string)
 	for _, acc := range accounts {
 		accountCurrency[acc.ID] = helpers.DefaultCurrency(acc.Currency)
 	}
-
-	// Currency halaman: dari filter akun atau akun pertama
 	pageCurrency := "IDR"
 	if accountID > 0 {
 		if cur, ok := accountCurrency[accountID]; ok {
@@ -53,15 +89,25 @@ func ListCampaigns(c *gin.Context) {
 		pageCurrency = helpers.DefaultCurrency(accounts[0].Currency)
 	}
 
+	// Insights per campaign untuk date range yang dipilih
+	insightMap, _ := models.GetCampaignInsightMap(userID, dateFrom, dateTo)
+	if insightMap == nil {
+		insightMap = make(map[string]*models.InsightSummary)
+	}
+
 	c.HTML(http.StatusOK, "campaigns.html", gin.H{
-		"title":           "Kampanye",
-		"campaigns":       campaigns,
-		"accounts":        accounts,
-		"templates":       templates,
-		"account_id":      accountID,
+		"title":            "Kampanye",
+		"campaigns":        campaigns,
+		"accounts":         accounts,
+		"templates":        templates,
+		"account_id":       accountID,
 		"account_currency": accountCurrency,
-		"currency":        pageCurrency,
-		"user":            middleware.GetCurrentUser(c),
+		"currency":         pageCurrency,
+		"insight_map":      insightMap,
+		"date_range":       dateRange,
+		"date_from":        dateFrom,
+		"date_to":          dateTo,
+		"user":             middleware.GetCurrentUser(c),
 	})
 }
 
