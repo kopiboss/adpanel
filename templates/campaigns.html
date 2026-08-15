@@ -1,131 +1,189 @@
 {{ define "content" }}
 <div x-data="{
-    selected:[],
-    dateRange:'today',
-    dateFrom:'',dateTo:'',
-
-    init(){
-        // Set default hari ini timezone Jakarta
-        const now=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Jakarta'}));
-        const y=now.getFullYear(),m=String(now.getMonth()+1).padStart(2,'0'),d=String(now.getDate()).padStart(2,'0');
-        this.dateFrom=y+'-'+m+'-'+d;
-        this.dateTo=y+'-'+m+'-'+d;
-    },
-
-    get allSelected(){ return {{len .campaigns}}>0&&this.selected.length==={{len .campaigns}} },
-    toggleAll(e){ this.selected=e.target.checked?[{{ range .campaigns }}{{.ID}},{{ end }}]:[] },
-
-    async bulkAction(action){
-        if(!this.selected.length){swalError('Pilih kampanye dulu');return}
-        const res=await swalConfirm({title:action+' '+this.selected.length+' kampanye?',text:'Tindakan ini akan diterapkan ke semua kampanye yang dipilih.'});
-        if(!res.isConfirmed)return;
-        const r=await fetch('/campaigns/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,campaign_ids:this.selected})});
-        const d=await r.json();
-        if(r.ok){swalSuccess(d.message);setTimeout(()=>location.reload(),1200)}
+    selected: [],
+    get allSelected() { return {{ len .campaigns }} > 0 && this.selected.length === {{ len .campaigns }} },
+    toggleAll(e) { this.selected = e.target.checked ? [{{ range .campaigns }}{{ .ID }},{{ end }}] : [] },
+    async bulkAction(action) {
+        if (!this.selected.length) { swalError('Pilih kampanye dulu'); return }
+        const res = await swalConfirm({ title: action + ' ' + this.selected.length + ' kampanye?' })
+        if (!res.isConfirmed) return
+        const r = await fetch('/campaigns/bulk', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action, campaign_ids: this.selected})
+        })
+        const d = await r.json()
+        if (r.ok) { swalSuccess(d.message); setTimeout(() => location.reload(), 1200) }
         else swalError(d.message)
     }
-}" class="space-y-5" x-init="init()">
+}" class="space-y-4">
 
     <!-- Toolbar -->
     <div class="flex flex-wrap items-center gap-3">
         <!-- Filter akun -->
-        <select onchange="window.location.href='?account_id='+this.value" class="input" style="width:auto">
+        <select onchange="applyFilter()" id="filter_account" class="input" style="width:auto;min-width:160px">
             <option value="">Semua Akun</option>
             {{ range .accounts }}
             <option value="{{ .ID }}" {{ if eq $.account_id .ID }}selected{{ end }}>{{ .Name }}</option>
             {{ end }}
         </select>
 
-        <!-- Date range pills -->
-        <div class="flex gap-1 p-1 rounded-lg" style="background:rgba(255,255,255,0.04);border:1px solid var(--border)">
-            <button @click="dateRange='today'" :class="dateRange==='today'?'bg-blue-600 text-white':'text-slate-400 hover:text-white'" class="px-3 py-1.5 text-xs rounded-md font-medium transition">Hari ini</button>
-            <button @click="dateRange='yesterday'" :class="dateRange==='yesterday'?'bg-blue-600 text-white':'text-slate-400 hover:text-white'" class="px-3 py-1.5 text-xs rounded-md font-medium transition">Kemarin</button>
-            <button @click="dateRange='7d'" :class="dateRange==='7d'?'bg-blue-600 text-white':'text-slate-400 hover:text-white'" class="px-3 py-1.5 text-xs rounded-md font-medium transition">7 Hari</button>
-            <button @click="dateRange='30d'" :class="dateRange==='30d'?'bg-blue-600 text-white':'text-slate-400 hover:text-white'" class="px-3 py-1.5 text-xs rounded-md font-medium transition">30 Hari</button>
-            <button @click="dateRange='custom'" :class="dateRange==='custom'?'bg-blue-600 text-white':'text-slate-400 hover:text-white'" class="px-3 py-1.5 text-xs rounded-md font-medium transition">Custom</button>
-        </div>
-
-        <!-- Custom date -->
-        <div x-show="dateRange==='custom'" x-cloak class="flex items-center gap-2">
-            <input type="date" x-model="dateFrom" class="input" style="width:auto;padding:6px 10px;font-size:12px">
-            <span class="text-xs" style="color:var(--text-sub)">—</span>
-            <input type="date" x-model="dateTo" class="input" style="width:auto;padding:6px 10px;font-size:12px">
+        <!-- Date range -->
+        <div class="flex gap-0.5 p-1 rounded-lg" style="background:rgba(255,255,255,0.04);border:1px solid var(--border)">
+            <a href="?account_id={{ .account_id }}&range=today"
+                class="px-3 py-1.5 text-xs rounded-md font-medium transition {{ if eq .date_range "today" }}bg-blue-600 text-white{{ else }}text-slate-400 hover:text-white{{ end }}">
+                Hari ini
+            </a>
+            <a href="?account_id={{ .account_id }}&range=yesterday"
+                class="px-3 py-1.5 text-xs rounded-md font-medium transition {{ if eq .date_range "yesterday" }}bg-blue-600 text-white{{ else }}text-slate-400 hover:text-white{{ end }}">
+                Kemarin
+            </a>
+            <a href="?account_id={{ .account_id }}&range=7d"
+                class="px-3 py-1.5 text-xs rounded-md font-medium transition {{ if eq .date_range "7d" }}bg-blue-600 text-white{{ else }}text-slate-400 hover:text-white{{ end }}">
+                7 Hari
+            </a>
+            <a href="?account_id={{ .account_id }}&range=30d"
+                class="px-3 py-1.5 text-xs rounded-md font-medium transition {{ if eq .date_range "30d" }}bg-blue-600 text-white{{ else }}text-slate-400 hover:text-white{{ end }}">
+                30 Hari
+            </a>
         </div>
 
         <!-- Bulk actions -->
-        <div x-show="selected.length>0" x-cloak class="flex items-center gap-2 ml-auto">
-            <span class="text-xs" style="color:var(--text-sub)" x-text="selected.length+' dipilih'"></span>
+        <div x-show="selected.length > 0" x-cloak class="flex items-center gap-2">
+            <span class="text-xs" style="color:var(--text-sub)" x-text="selected.length + ' dipilih'"></span>
             <button @click="bulkAction('pause')" class="btn btn-ghost" style="font-size:12px;padding:5px 11px;color:#facc15;border-color:rgba(234,179,8,0.2)">Pause</button>
             <button @click="bulkAction('activate')" class="btn btn-success" style="font-size:12px;padding:5px 11px">Aktifkan</button>
             <button @click="bulkAction('delete')" class="btn btn-danger" style="font-size:12px;padding:5px 11px">Hapus</button>
         </div>
 
-        <a href="/campaigns/new" class="btn btn-primary" :class="selected.length>0?'':'ml-auto'">
+        <a href="/campaigns/new" class="btn btn-primary ml-auto">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             Buat Kampanye
         </a>
     </div>
 
+    <!-- Date range info -->
+    <div class="flex items-center gap-2 text-xs" style="color:var(--text-sub)">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        Data performa: <span class="text-white font-medium">{{ .date_from }}{{ if ne .date_from .date_to }} — {{ .date_to }}{{ end }}</span>
+        <span style="color:var(--text-muted)">(WIB)</span>
+    </div>
+
     <div class="card overflow-hidden">
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="border-b" style="border-color:var(--border);background:rgba(255,255,255,0.01)">
-                    <th class="px-4 py-3 w-10"><input type="checkbox" :checked="allSelected" @change="toggleAll($event)" class="accent-blue-600"></th>
-                    <th class="text-left px-4 py-3 text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">Kampanye</th>
-                    <th class="text-left px-4 py-3 text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">Akun</th>
-                    <th class="text-left px-4 py-3 text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">Objective</th>
-                    <th class="text-left px-4 py-3 text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">Budget/hari</th>
-                    <th class="text-left px-4 py-3 text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">Status</th>
-                    <th class="text-left px-4 py-3 text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">Aksi</th>
-                </tr>
-            </thead>
-            <tbody>
-                {{ range .campaigns }}
-                <tr x-data="{ status:'{{ .Status }}', id:{{ .ID }} }" class="table-row">
-                    <td class="px-4 py-3"><input type="checkbox" :value="{{ .ID }}" x-model="selected" class="accent-blue-600"></td>
-                    <td class="px-4 py-4">
-                        <p class="font-medium text-white text-sm">{{ .Name }}</p>
-                        <p class="text-xs font-mono mt-0.5" style="color:var(--text-muted)">{{ .MetaCampaignID }}</p>
-                    </td>
-                    <td class="px-4 py-4 text-sm" style="color:var(--text-sub)">{{ .AdAccountName }}</td>
-                    <td class="px-4 py-4"><span class="badge badge-gray text-xs">{{ .Objective }}</span></td>
-                    <td class="px-4 py-4 text-sm text-slate-300">
-                        {{ if .DailyBudget }}{{ formatBudget .DailyBudget (index $.account_currency .AdAccountID) }}{{ else }}—{{ end }}
-                    </td>
-                    <td class="px-4 py-4">
-                        <button @click="fetch('/campaigns/'+id+'/toggle',{method:'POST'}).then(r=>r.json()).then(d=>{status=d.status;swalSuccess(d.message)})"
-                            :class="status==='ACTIVE'?'badge-green':status==='PAUSED'?'badge-yellow':'badge-gray'"
-                            class="badge cursor-pointer hover:opacity-80 transition" x-text="status">
-                        </button>
-                    </td>
-                    <td class="px-4 py-4">
-                        <div class="flex items-center gap-3">
-                            <button @click="
-                                Swal.fire({title:'Ubah Budget',input:'number',inputLabel:'Budget harian baru ({{ $.currency }})',inputPlaceholder:'100000',showCancelButton:true,cancelButtonText:'Batal',confirmButtonText:'Simpan'})
-                                .then(r=>{if(r.isConfirmed&&r.value){const fd=new FormData();fd.append('daily_budget',r.value);fetch('/campaigns/'+id+'/budget',{method:'POST',body:fd}).then(r=>r.json()).then(d=>swalSuccess(d.message))}})"
-                                class="text-xs text-blue-400 hover:text-blue-300 transition">Budget</button>
-                            <button @click="
-                                Swal.fire({title:'Duplikasi Kampanye',input:'text',inputLabel:'Nama kampanye baru',inputValue:'{{ .Name }} (copy)',showCancelButton:true,cancelButtonText:'Batal'})
-                                .then(r=>{if(r.isConfirmed&&r.value){const fd=new FormData();fd.append('name',r.value);fetch('/campaigns/'+id+'/duplicate',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{swalSuccess(d.message);setTimeout(()=>location.reload(),1200)})}})"
-                                class="text-xs text-slate-400 hover:text-slate-300 transition">Duplikasi</button>
-                            <button @click="swalConfirm({title:'Hapus kampanye ini?',text:'{{ .Name }}'}).then(r=>{if(r.isConfirmed)fetch('/campaigns/'+id,{method:'DELETE'}).then(r=>r.json()).then(d=>{swalSuccess(d.message);setTimeout(()=>location.reload(),1200)})})"
-                                class="text-xs text-red-400 hover:text-red-300 transition">Hapus</button>
-                        </div>
-                    </td>
-                </tr>
-                {{ else }}
-                <tr>
-                    <td colspan="7" class="px-4 py-16 text-center">
-                        <div class="flex flex-col items-center gap-2">
-                            <svg class="w-8 h-8" style="color:var(--text-muted)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6"/></svg>
-                            <p class="text-sm text-slate-500">Belum ada kampanye</p>
-                            <a href="/campaigns/new" class="text-xs text-blue-400 hover:text-blue-300">Buat kampanye pertama →</a>
-                        </div>
-                    </td>
-                </tr>
-                {{ end }}
-            </tbody>
-        </table>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm" style="min-width:900px">
+                <thead>
+                    <tr class="border-b" style="border-color:var(--border);background:rgba(255,255,255,0.01)">
+                        <th class="px-4 py-3 w-10">
+                            <input type="checkbox" :checked="allSelected" @change="toggleAll($event)" class="accent-blue-600">
+                        </th>
+                        <th class="text-left px-4 py-3 text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">Kampanye</th>
+                        <th class="text-left px-4 py-3 text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">Status</th>
+                        <th class="text-right px-4 py-3 text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">Spend</th>
+                        <th class="text-right px-4 py-3 text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">Impr.</th>
+                        <th class="text-right px-4 py-3 text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">Klik</th>
+                        <th class="text-right px-4 py-3 text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">CTR</th>
+                        <th class="text-right px-4 py-3 text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">CPC</th>
+                        <th class="text-right px-4 py-3 text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">Budget/hari</th>
+                        <th class="text-left px-4 py-3 text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{ range .campaigns }}
+                    {{ $ins := index $.insight_map .MetaCampaignID }}
+                    <tr x-data="{ status: '{{ .Status }}', id: {{ .ID }} }" class="table-row">
+                        <td class="px-4 py-3">
+                            <input type="checkbox" :value="{{ .ID }}" x-model="selected" class="accent-blue-600">
+                        </td>
+                        <td class="px-4 py-4" style="max-width:220px">
+                            <p class="font-semibold text-white text-sm truncate">{{ .Name }}</p>
+                            <p class="text-xs font-mono mt-0.5 truncate" style="color:var(--text-muted)">{{ .MetaCampaignID }}</p>
+                            <p class="text-xs mt-0.5 truncate" style="color:var(--text-sub)">{{ .AdAccountName }}</p>
+                        </td>
+                        <td class="px-4 py-4">
+                            <button @click="fetch('/campaigns/'+id+'/toggle',{method:'POST'}).then(r=>r.json()).then(d=>{status=d.status;swalSuccess(d.message)})"
+                                :class="status==='ACTIVE'?'badge-green':status==='PAUSED'?'badge-yellow':'badge-gray'"
+                                class="badge cursor-pointer hover:opacity-80 transition text-xs" x-text="status==='ACTIVE'?'Aktif':status==='PAUSED'?'Jeda':status">
+                            </button>
+                        </td>
+
+                        <!-- Insights -->
+                        {{ if $ins }}
+                        <td class="px-4 py-4 text-right">
+                            <span class="text-sm font-semibold text-white">{{ formatMoney $ins.TotalSpend $.currency }}</span>
+                        </td>
+                        <td class="px-4 py-4 text-right text-sm" style="color:var(--text-sub)">
+                            {{ if gt $ins.TotalImpressions (int64 999) }}
+                                {{ printf "%.1fK" (divf64 $ins.TotalImpressions 1000) }}
+                            {{ else }}{{ $ins.TotalImpressions }}{{ end }}
+                        </td>
+                        <td class="px-4 py-4 text-right text-sm" style="color:var(--text-sub)">{{ $ins.TotalClicks }}</td>
+                        <td class="px-4 py-4 text-right text-sm" style="color:var(--text-sub)">{{ printf "%.2f" $ins.AvgCTR }}%</td>
+                        <td class="px-4 py-4 text-right text-sm" style="color:var(--text-sub)">{{ formatMoney $ins.AvgCPC $.currency }}</td>
+                        {{ else }}
+                        <td colspan="5" class="px-4 py-4 text-center text-xs" style="color:var(--text-muted)">
+                            — belum ada data —
+                        </td>
+                        {{ end }}
+
+                        <td class="px-4 py-4 text-right text-sm" style="color:var(--text-sub)">
+                            {{ if .DailyBudget }}{{ formatBudget .DailyBudget (index $.account_currency .AdAccountID) }}{{ else }}—{{ end }}
+                        </td>
+                        <td class="px-4 py-4">
+                            <div class="flex items-center gap-3">
+                                <button @click="
+                                    Swal.fire({title:'Ubah Budget',input:'number',
+                                        inputLabel:'Budget harian ({{ $.currency }})',
+                                        inputPlaceholder:'100000',showCancelButton:true,cancelButtonText:'Batal'})
+                                    .then(r=>{if(r.isConfirmed&&r.value){
+                                        const fd=new FormData();fd.append('daily_budget',r.value);
+                                        fetch('/campaigns/'+id+'/budget',{method:'POST',body:fd})
+                                        .then(r=>r.json()).then(d=>swalSuccess(d.message))
+                                    }})"
+                                    class="text-xs text-blue-400 hover:text-blue-300 transition">Budget</button>
+                                <button @click="
+                                    Swal.fire({title:'Duplikasi',input:'text',
+                                        inputLabel:'Nama kampanye baru',
+                                        inputValue:'{{ .Name }} (copy)',showCancelButton:true,cancelButtonText:'Batal'})
+                                    .then(r=>{if(r.isConfirmed&&r.value){
+                                        const fd=new FormData();fd.append('name',r.value);
+                                        fetch('/campaigns/'+id+'/duplicate',{method:'POST',body:fd})
+                                        .then(r=>r.json()).then(d=>{swalSuccess(d.message);setTimeout(()=>location.reload(),1200)})
+                                    }})"
+                                    class="text-xs text-slate-400 hover:text-slate-300 transition">Duplikasi</button>
+                                <button @click="
+                                    swalConfirm({title:'Hapus kampanye?',text:'{{ .Name }}'})
+                                    .then(r=>{if(r.isConfirmed)
+                                        fetch('/campaigns/'+id,{method:'DELETE'})
+                                        .then(r=>r.json()).then(d=>{swalSuccess(d.message);setTimeout(()=>location.reload(),1200)})
+                                    })"
+                                    class="text-xs text-red-400 hover:text-red-300 transition">Hapus</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {{ else }}
+                    <tr>
+                        <td colspan="10" class="px-4 py-16 text-center">
+                            <div class="flex flex-col items-center gap-2">
+                                <svg class="w-8 h-8" style="color:var(--text-muted)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6"/></svg>
+                                <p class="text-sm text-slate-500">Belum ada kampanye</p>
+                                <a href="/campaigns/new" class="text-xs text-blue-400 hover:text-blue-300">Buat kampanye pertama →</a>
+                            </div>
+                        </td>
+                    </tr>
+                    {{ end }}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
+
+<script>
+function applyFilter() {
+    const acc = document.getElementById('filter_account').value;
+    const url = new URL(window.location);
+    url.searchParams.set('account_id', acc);
+    window.location = url;
+}
+</script>
 {{ end }}
