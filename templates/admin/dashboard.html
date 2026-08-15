@@ -1,0 +1,54 @@
+{{ template "layout.html" . }}
+{{ define "content" }}
+<div class="space-y-6">
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
+            <p class="text-sm text-slate-400">Total Users</p>
+            <p class="text-3xl font-bold text-white mt-1">{{ .total_users }}</p>
+        </div>
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
+            <p class="text-sm text-slate-400">Menunggu Approve</p>
+            <p class="text-3xl font-bold text-yellow-400 mt-1">{{ .pending }}</p>
+            {{ if gt .pending 0 }}
+            <a href="/admin/users" class="text-xs text-yellow-400 hover:text-yellow-300">Lihat →</a>
+            {{ end }}
+        </div>
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
+            <p class="text-sm text-slate-400">Users Aktif</p>
+            <p class="text-3xl font-bold text-green-400 mt-1">{{ .active }}</p>
+        </div>
+    </div>
+
+    <!-- Recent Sync Logs -->
+    <div class="bg-slate-800 border border-slate-700 rounded-xl">
+        <div class="p-5 border-b border-slate-700">
+            <h3 class="font-semibold">Aktivitas Sync Terbaru</h3>
+        </div>
+        <div class="divide-y divide-slate-700">
+            {{ if .recent_logs }}
+            {{ range .recent_logs }}
+            <div class="px-5 py-3 flex items-center justify-between text-sm">
+                <div>
+                    <span class="text-white">{{ .SyncType }}</span>
+                    <span class="text-slate-400 ml-2">{{ .AdAccountName }}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-slate-400 text-xs">{{ .CreatedAt.Format "02 Jan 15:04" }}</span>
+                    {{ if eq .Status "success" }}
+                    <span class="px-2 py-0.5 bg-green-900/50 text-green-400 rounded text-xs">✓ Sukses</span>
+                    {{ else if eq .Status "failed" }}
+                    <span class="px-2 py-0.5 bg-red-900/50 text-red-400 rounded text-xs">✗ Gagal</span>
+                    {{ else }}
+                    <span class="px-2 py-0.5 bg-yellow-900/50 text-yellow-400 rounded text-xs">⟳ Running</span>
+                    {{ end }}
+                </div>
+            </div>
+            {{ end }}
+            {{ else }}
+            <div class="px-5 py-8 text-center text-slate-500 text-sm">Belum ada aktivitas sync</div>
+            {{ end }}
+        </div>
+    </div>
+</div>
+{{ end }}

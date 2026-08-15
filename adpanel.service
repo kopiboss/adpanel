@@ -1,0 +1,20 @@
+[Unit]
+Description=AdPanel - Meta Ads Management Platform
+After=network.target mysql.service
+Requires=mysql.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/adpanel
+ExecStart=/opt/adpanel/adpanel
+EnvironmentFile=/opt/adpanel/.env
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=adpanel
+
+[Install]
+WantedBy=multi-user.target

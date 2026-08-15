@@ -1,0 +1,76 @@
+{{ template "layout.html" . }}
+{{ define "content" }}
+<div x-data="{ toast: '', toastType: 'success', showToast(m,t='success'){this.toast=m;this.toastType=t;setTimeout(()=>this.toast='',3000)} }" class="space-y-6">
+
+    <div x-show="toast" x-cloak x-transition
+        :class="toastType==='success'?'bg-green-900 border-green-700 text-green-300':'bg-red-900 border-red-700 text-red-300'"
+        class="fixed top-5 right-5 border rounded-lg px-4 py-3 text-sm z-50" x-text="toast">
+    </div>
+
+    <div class="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+        <div class="p-5 border-b border-slate-700">
+            <h3 class="font-semibold">Ad Accounts ({{ len .accounts }})</h3>
+            <p class="text-sm text-slate-400 mt-1">Untuk menambah ad account, klik "Fetch Ad Accounts" di halaman Kredensial</p>
+        </div>
+
+        {{ if .accounts }}
+        <div class="divide-y divide-slate-700">
+            {{ range .accounts }}
+            <div x-data="{ isActive: {{ .IsActive }}, id: {{ .ID }} }" class="p-5 flex items-center justify-between gap-4">
+                <div class="flex items-center gap-4">
+                    <div :class="isActive ? 'bg-green-900/50 border-green-700' : 'bg-slate-700 border-slate-600'"
+                        class="w-10 h-10 border rounded-lg flex items-center justify-center text-lg">
+                        📊
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h4 class="font-medium text-white">{{ .Name }}</h4>
+                            <span x-show="!isActive" class="px-2 py-0.5 bg-slate-700 text-slate-400 rounded text-xs">Nonaktif</span>
+                        </div>
+                        <p class="text-sm text-slate-400 mt-0.5">
+                            {{ .MetaAccountID }} · {{ .Currency }} · {{ .Timezone }}
+                        </p>
+                        <p class="text-xs text-slate-500 mt-1">{{ .CredentialLabel }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <a :href="'/sync-logs/' + id" class="px-3 py-1.5 border border-slate-600 hover:border-slate-500 text-slate-300 rounded-lg text-xs">
+                        Sync Log
+                    </a>
+                    <button @click="
+                        fetch('/sync/' + id, {method:'POST'})
+                        .then(r=>r.json()).then(d=>showToast(d.message))
+                    " class="px-3 py-1.5 border border-blue-700 text-blue-400 hover:bg-blue-900/20 rounded-lg text-xs">
+                        ⟳ Sync Now
+                    </button>
+                    <button @click="
+                        fetch('/ad-accounts/' + id + '/toggle', {method:'POST'})
+                        .then(r=>r.json()).then(d=>{ isActive=d.is_active; showToast(d.message) })
+                    " :class="isActive ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-600 hover:bg-slate-500'"
+                        class="relative inline-flex w-12 h-6 rounded-full transition-colors cursor-pointer">
+                        <span :class="isActive ? 'translate-x-6' : 'translate-x-1'"
+                            class="inline-block w-4 h-4 mt-1 bg-white rounded-full transition-transform"></span>
+                    </button>
+                    <button @click="
+                        if(confirm('Hapus ad account ini?')) {
+                            fetch('/ad-accounts/' + id, {method:'DELETE'})
+                            .then(r=>r.json()).then(d=>{ showToast(d.message); setTimeout(()=>location.reload(),1000) })
+                        }
+                    " class="p-1.5 text-slate-500 hover:text-red-400 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </div>
+            </div>
+            {{ end }}
+        </div>
+        {{ else }}
+        <div class="py-16 text-center">
+            <p class="text-slate-500 mb-2">Belum ada ad account</p>
+            <a href="/credentials" class="text-sm text-blue-400 hover:text-blue-300">
+                Tambah kredensial dan fetch ad accounts →
+            </a>
+        </div>
+        {{ end }}
+    </div>
+</div>
+{{ end }}

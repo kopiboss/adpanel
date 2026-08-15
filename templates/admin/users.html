@@ -1,0 +1,100 @@
+{{ template "layout.html" . }}
+{{ define "content" }}
+<div x-data="{ toast: '', toastType: 'success' }" class="space-y-6">
+    <!-- Toast -->
+    <div x-show="toast" x-cloak x-transition
+        :class="toastType === 'success' ? 'bg-green-900 border-green-700 text-green-300' : 'bg-red-900 border-red-700 text-red-300'"
+        class="fixed top-5 right-5 border rounded-lg px-4 py-3 text-sm z-50"
+        x-text="toast">
+    </div>
+
+    <div class="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+        <div class="p-5 border-b border-slate-700">
+            <h3 class="font-semibold">Semua Users</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-700 text-slate-400 text-xs uppercase">
+                        <th class="text-left px-5 py-3">Nama</th>
+                        <th class="text-left px-5 py-3">Email</th>
+                        <th class="text-left px-5 py-3">Status</th>
+                        <th class="text-left px-5 py-3">Daftar</th>
+                        <th class="text-left px-5 py-3">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-700">
+                    {{ range .users }}
+                    <tr x-data="{ id: {{ .ID }}, status: '{{ .Status }}' }">
+                        <td class="px-5 py-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center text-sm font-bold">
+                                    {{ slice .Name 0 1 }}
+                                </div>
+                                <span class="text-white font-medium">{{ .Name }}</span>
+                            </div>
+                        </td>
+                        <td class="px-5 py-4 text-slate-400">{{ .Email }}</td>
+                        <td class="px-5 py-4">
+                            <span x-text="status"
+                                :class="{
+                                    'bg-yellow-900/50 text-yellow-400 border-yellow-700': status === 'pending',
+                                    'bg-green-900/50 text-green-400 border-green-700': status === 'active',
+                                    'bg-red-900/50 text-red-400 border-red-700': status === 'suspended'
+                                }"
+                                class="px-2 py-0.5 border rounded text-xs capitalize">
+                            </span>
+                        </td>
+                        <td class="px-5 py-4 text-slate-400 text-xs">{{ .CreatedAt.Format "02 Jan 2006" }}</td>
+                        <td class="px-5 py-4">
+                            <div class="flex items-center gap-2">
+                                <template x-if="status === 'pending'">
+                                    <button @click="
+                                        fetch('/admin/users/' + id + '/approve', {method:'POST'})
+                                        .then(r=>r.json()).then(d=>{ status='active'; toast=d.message; toastType='success'; setTimeout(()=>toast='',3000) })
+                                    " class="px-3 py-1 bg-green-600 hover:bg-green-700 text-xs rounded text-white">
+                                        ✓ Approve
+                                    </button>
+                                </template>
+                                <template x-if="status === 'pending'">
+                                    <button @click="
+                                        if(confirm('Reject dan hapus user ini?')) {
+                                            fetch('/admin/users/' + id + '/reject', {method:'POST'})
+                                            .then(r=>r.json()).then(d=>{ $el.closest('tr').remove(); toast=d.message; toastType='success'; setTimeout(()=>toast='',3000) })
+                                        }
+                                    " class="px-3 py-1 bg-red-600 hover:bg-red-700 text-xs rounded text-white">
+                                        ✗ Reject
+                                    </button>
+                                </template>
+                                <template x-if="status === 'active'">
+                                    <button @click="
+                                        fetch('/admin/users/' + id + '/suspend', {method:'POST'})
+                                        .then(r=>r.json()).then(d=>{ status='suspended'; toast=d.message; toastType='success'; setTimeout(()=>toast='',3000) })
+                                    " class="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-xs rounded text-white">
+                                        Suspend
+                                    </button>
+                                </template>
+                                <template x-if="status === 'suspended'">
+                                    <button @click="
+                                        fetch('/admin/users/' + id + '/unsuspend', {method:'POST'})
+                                        .then(r=>r.json()).then(d=>{ status='active'; toast=d.message; toastType='success'; setTimeout(()=>toast='',3000) })
+                                    " class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-xs rounded text-white">
+                                        Aktifkan
+                                    </button>
+                                </template>
+                            </div>
+                        </td>
+                    </tr>
+                    {{ else }}
+                    <tr>
+                        <td colspan="5" class="px-5 py-10 text-center text-slate-500">
+                            Belum ada users yang terdaftar
+                        </td>
+                    </tr>
+                    {{ end }}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{{ end }}

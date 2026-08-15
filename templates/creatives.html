@@ -1,0 +1,159 @@
+{{ template "layout.html" . }}
+{{ define "content" }}
+<div x-data="{
+    uploading: false,
+    progress: '',
+    toast: '', toastType: 'success',
+    selectedAccounts: [],
+    multiUpload: false,
+    pollingIDs: [],
+
+    showToast(m, t='success') { this.toast=m; this.toastType=t; setTimeout(()=>this.toast='',5000) },
+
+    async upload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const accountID = document.getElementById('account_select').value;
+        if (!accountID) { this.showToast('Pilih ad account dulu', 'error'); return; }
+
+        this.uploading = true;
+        this.progress = 'Mengunggah...';
+
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('ad_account_id', accountID);
+
+        const r = await fetch('/creatives/upload', { method: 'POST', body: fd });
+        const d = await r.json();
+        this.uploading = false;
+
+        if (r.ok) {
+            this.showToast('Upload dimulai: ' + d.name);
+            this.startPolling(d.creative_id);
+        } else {
+            this.showToast(d.error || 'Gagal upload', 'error');
+        }
+        e.target.value = '';
+    },
+
+    startPolling(id) {
+        this.pollingIDs.push(id);
+        const interval = setInterval(async () => {
+            const r = await fetch('/creatives/' + id + '/status');
+            const d = await r.json();
+            const el = document.getElementById('status-' + id);
+            if (el) {
+                el.textContent = d.upload_status;
+                el.className = d.upload_status === 'done' ? 'text-green-400 text-xs' :
+                    d.upload_status === 'failed' ? 'text-red-400 text-xs' : 'text-yellow-400 text-xs animate-pulse';
+            }
+            if (d.upload_status === 'done' || d.upload_status === 'failed') {
+                clearInterval(interval);
+                if (d.upload_status === 'done') {
+                    this.showToast('Upload selesai!');
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    this.showToast('Upload gagal: ' + d.error_message, 'error');
+                }
+            }
+        }, 3000);
+    },
+
+    async deleteCreative(id) {
+        if (!confirm('Hapus creative ini?')) return;
+        const r = await fetch('/creatives/' + id, { method: 'DELETE' });
+        const d = await r.json();
+        if (r.ok) { this.showToast(d.message); setTimeout(() => location.reload(), 1000); }
+        else this.showToast(d.error, 'error');
+    }
+}" class="space-y-6">
+
+    <div x-show="toast" x-cloak x-transition
+        :class="toastType==='success'?'bg-green-900 border-green-700 text-green-300':'bg-red-900 border-red-700 text-red-300'"
+        class="fixed top-5 right-5 border rounded-lg px-4 py-3 text-sm z-50" x-text="toast">
+    </div>
+
+    <!-- Upload Panel -->
+    <div class="bg-slate-800 border border-slate-700 rounded-xl p-6">
+        <h3 class="font-semibold mb-4">Upload Creative</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="md:col-span-2">
+                <label class="block text-sm text-slate-400 mb-1.5">Ad Account Tujuan</label>
+                <select id="account_select" class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
+                    <option value="">Pilih Ad Account</option>
+                    {{ range .accounts }}
+                    <option value="{{ .ID }}" {{ if eq $.account_id .ID }}selected{{ end }}>{{ .Name }}</option>
+                    {{ end }}
+                </select>
+            </div>
+            <div class="flex flex-col justify-end">
+                <label :class="uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'"
+                    class="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    <span x-text="uploading ? progress : 'Upload File'"></span>
+                    <input type="file" class="hidden" accept=".jpg,.jpeg,.png,.mp4" @change="upload($event)" :disabled="uploading">
+                </label>
+                <p class="text-xs text-slate-500 mt-1 text-center">JPG/PNG max 30MB · MP4 max 1GB</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter -->
+    <div class="flex items-center justify-between">
+        <select onchange="window.location.href='?account_id='+this.value"
+            class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none">
+            <option value="">Semua Akun</option>
+            {{ range .accounts }}
+            <option value="{{ .ID }}" {{ if eq $.account_id .ID }}selected{{ end }}>{{ .Name }}</option>
+            {{ end }}
+        </select>
+        <p class="text-sm text-slate-400">{{ len .creatives }} creative</p>
+    </div>
+
+    <!-- Creative Grid -->
+    {{ if .creatives }}
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {{ range .creatives }}
+        <div class="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden group">
+            <div class="aspect-video bg-slate-700 flex items-center justify-center relative">
+                {{ if .ThumbnailURL }}
+                <img src="{{ .ThumbnailURL }}" class="w-full h-full object-cover">
+                {{ else }}
+                <span class="text-3xl">{{ if eq .Type "video" }}🎬{{ else }}🖼{{ end }}</span>
+                {{ end }}
+                <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                    <button onclick="document.getElementById('deleteCreative').click()" @click="deleteCreative({{ .ID }})"
+                        class="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs">Hapus</button>
+                </div>
+            </div>
+            <div class="p-3">
+                <p class="text-sm font-medium text-white truncate">{{ .Name }}</p>
+                <div class="flex items-center justify-between mt-1">
+                    <span class="text-xs text-slate-500">{{ .Type }}</span>
+                    <span id="status-{{ .ID }}"
+                        class="{{ if eq .UploadStatus "done" }}text-green-400{{ else if eq .UploadStatus "failed" }}text-red-400{{ else }}text-yellow-400 animate-pulse{{ end }} text-xs">
+                        {{ .UploadStatus }}
+                    </span>
+                </div>
+                {{ if and (ne .UploadStatus "done") (ne .UploadStatus "failed") }}
+                <script>
+                    // Auto-poll for non-terminal status
+                    setTimeout(() => {
+                        const app = document.querySelector('[x-data]').__x.$data;
+                        app.startPolling({{ .ID }});
+                    }, 1000);
+                </script>
+                {{ end }}
+            </div>
+        </div>
+        {{ end }}
+    </div>
+    {{ else }}
+    <div class="bg-slate-800 border border-slate-700 rounded-xl py-16 text-center">
+        <p class="text-4xl mb-4">🖼</p>
+        <p class="text-slate-400">Belum ada creative</p>
+        <p class="text-sm text-slate-500 mt-1">Upload gambar atau video untuk mulai</p>
+    </div>
+    {{ end }}
+</div>
+{{ end }}

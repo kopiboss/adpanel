@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menunggu Persetujuan - AdPanel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 min-h-screen flex items-center justify-center">
+<div class="w-full max-w-md px-4 text-center">
+    <div class="w-20 h-20 bg-yellow-600/20 border border-yellow-600/50 rounded-full flex items-center justify-center mx-auto mb-6">
+        <svg class="w-10 h-10 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+    </div>
+    <h1 class="text-2xl font-bold text-white mb-3">Menunggu Persetujuan</h1>
+    <p class="text-slate-400 mb-6">
+        Pendaftaran Anda telah berhasil dikirim. Admin akan mereview dan menyetujui akun Anda segera.
+        Anda akan bisa login setelah akun disetujui.
+    </p>
+    <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 text-left mb-6">
+        <p class="text-sm text-slate-400 font-medium mb-2">Apa yang terjadi selanjutnya?</p>
+        <ol class="text-sm text-slate-300 space-y-2 list-decimal list-inside">
+            <li>Admin menerima notifikasi pendaftaran Anda</li>
+            <li>Admin mereview dan menyetujui akun</li>
+            <li>Anda bisa login dan menggunakan AdPanel</li>
+        </ol>
+    </div>
+    <a href="/login" class="text-blue-400 hover:text-blue-300 text-sm">
+        ← Kembali ke halaman login
+    </a>
+</div>
+</body>
+</html>

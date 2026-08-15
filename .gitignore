@@ -1,0 +1,24 @@
+# Environment
+.env
+
+# Binary
+adpanel
+adpanel.new
+*.exe
+
+# Temp / uploads
+/tmp/
+uploads/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go build cache
+vendor/

@@ -1,0 +1,152 @@
+{{ template "layout.html" . }}
+{{ define "content" }}
+<div class="space-y-6">
+    <!-- Filters -->
+    <div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+        <form method="GET" class="flex flex-wrap items-center gap-4">
+            <select name="account_id" onchange="this.form.submit()" class="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none">
+                <option value="">Semua Akun</option>
+                {{ range .accounts }}
+                <option value="{{ .ID }}" {{ if eq $.account_id .ID }}selected{{ end }}>{{ .Name }} ({{ .Currency }})</option>
+                {{ end }}
+            </select>
+
+            <div class="flex gap-2">
+                <a href="?account_id={{ .account_id }}&range=today" class="px-3 py-1.5 text-sm rounded-lg {{ if eq .date_range "today" }}bg-blue-600 text-white{{ else }}bg-slate-700 text-slate-400 hover:text-white{{ end }}">Hari ini</a>
+                <a href="?account_id={{ .account_id }}&range=7" class="px-3 py-1.5 text-sm rounded-lg {{ if eq .date_range "7" }}bg-blue-600 text-white{{ else }}bg-slate-700 text-slate-400 hover:text-white{{ end }}">7 Hari</a>
+                <a href="?account_id={{ .account_id }}&range=30" class="px-3 py-1.5 text-sm rounded-lg {{ if eq .date_range "30" }}bg-blue-600 text-white{{ else }}bg-slate-700 text-slate-400 hover:text-white{{ end }}">30 Hari</a>
+            </div>
+
+            <div class="flex gap-2 items-center">
+                <input type="date" name="date_from" value="{{ .date_from }}"
+                    class="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
+                <span class="text-slate-500 text-sm">s/d</span>
+                <input type="date" name="date_to" value="{{ .date_to }}"
+                    class="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
+                <input type="hidden" name="range" value="custom">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">Terapkan</button>
+            </div>
+
+            <a href="/analytics/export?account_id={{ .account_id }}&date_from={{ .date_from }}&date_to={{ .date_to }}"
+                class="ml-auto px-4 py-2 border border-slate-600 hover:border-slate-500 text-slate-300 rounded-lg text-sm flex items-center gap-2">
+                ↓ Export CSV
+            </a>
+        </form>
+    </div>
+
+    <!-- Currency badge -->
+    <div class="flex items-center gap-2">
+        <span class="text-xs text-slate-500">Mata uang:</span>
+        <span class="px-2 py-0.5 bg-blue-900/40 border border-blue-700 text-blue-300 rounded text-xs font-mono">{{ .currency }}</span>
+        {{ if eq .currency "IDR" }}
+        <span class="text-xs text-slate-500">— otomatis terdeteksi dari ad account</span>
+        {{ end }}
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
+            <p class="text-xs text-slate-400 uppercase tracking-wide">Total Spend</p>
+            <p class="text-2xl font-bold text-white mt-1">{{ formatMoney .summary.TotalSpend .currency }}</p>
+        </div>
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
+            <p class="text-xs text-slate-400 uppercase tracking-wide">Impressions</p>
+            <p class="text-2xl font-bold text-white mt-1">{{ .summary.TotalImpressions }}</p>
+        </div>
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
+            <p class="text-xs text-slate-400 uppercase tracking-wide">Clicks</p>
+            <p class="text-2xl font-bold text-white mt-1">{{ .summary.TotalClicks }}</p>
+            <p class="text-xs text-slate-500 mt-1">CTR {{ printf "%.2f" .summary.AvgCTR }}%</p>
+        </div>
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
+            <p class="text-xs text-slate-400 uppercase tracking-wide">Reach</p>
+            <p class="text-2xl font-bold text-white mt-1">{{ .summary.TotalReach }}</p>
+            <p class="text-xs text-slate-500 mt-1">CPM {{ formatMoney .summary.AvgCPM .currency }}</p>
+        </div>
+    </div>
+
+    <!-- Spend Chart -->
+    {{ if .daily_spend }}
+    <div class="bg-slate-800 border border-slate-700 rounded-xl p-6">
+        <h3 class="font-semibold mb-4">Spend Harian <span class="text-xs text-slate-500 font-normal">({{ .currency }})</span></h3>
+        <canvas id="spendChart" height="80"></canvas>
+    </div>
+    {{ end }}
+
+    <!-- Campaign Performance Table -->
+    {{ if .campaign_insights }}
+    <div class="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+        <div class="p-5 border-b border-slate-700">
+            <h3 class="font-semibold">Performa per Kampanye</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-700 text-slate-400 text-xs uppercase">
+                        <th class="text-left px-5 py-3">Kampanye</th>
+                        <th class="text-right px-5 py-3">Spend</th>
+                        <th class="text-right px-5 py-3">Impressions</th>
+                        <th class="text-right px-5 py-3">Clicks</th>
+                        <th class="text-right px-5 py-3">CTR</th>
+                        <th class="text-right px-5 py-3">CPC</th>
+                        <th class="text-right px-5 py-3">CPM</th>
+                        <th class="text-right px-5 py-3">Reach</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-700">
+                    {{ range .campaign_insights }}
+                    <tr class="hover:bg-slate-700/30">
+                        <td class="px-5 py-4 font-medium text-white">{{ .CampaignName }}</td>
+                        <td class="px-5 py-4 text-right text-slate-300">{{ formatMoney .Spend $.currency }}</td>
+                        <td class="px-5 py-4 text-right text-slate-300">{{ .Impressions }}</td>
+                        <td class="px-5 py-4 text-right text-slate-300">{{ .Clicks }}</td>
+                        <td class="px-5 py-4 text-right text-slate-300">{{ printf "%.2f" .CTR }}%</td>
+                        <td class="px-5 py-4 text-right text-slate-300">{{ formatMoney .CPC $.currency }}</td>
+                        <td class="px-5 py-4 text-right text-slate-300">{{ formatMoney .CPM $.currency }}</td>
+                        <td class="px-5 py-4 text-right text-slate-300">{{ .Reach }}</td>
+                    </tr>
+                    {{ end }}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {{ end }}
+</div>
+
+{{ if .daily_spend }}
+<script>
+const ctx = document.getElementById('spendChart');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: {{ .spend_labels | js }},
+        datasets: [{
+            label: 'Spend ({{ .currency }})',
+            data: {{ .spend_data | js }},
+            backgroundColor: 'rgba(59, 130, 246, 0.5)',
+            borderColor: 'rgba(59, 130, 246, 1)',
+            borderWidth: 1,
+            borderRadius: 4
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { labels: { color: '#94a3b8' } },
+            tooltip: {
+                callbacks: {
+                    label: function(ctx) {
+                        return ' {{ currencySymbol .currency }} ' + ctx.raw.toLocaleString('id-ID');
+                    }
+                }
+            }
+        },
+        scales: {
+            x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+            y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+        }
+    }
+});
+</script>
+{{ end }}
+{{ end }}

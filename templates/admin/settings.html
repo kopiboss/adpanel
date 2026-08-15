@@ -1,0 +1,76 @@
+{{ template "layout.html" . }}
+{{ define "content" }}
+<div class="max-w-2xl">
+    <form method="POST" action="/admin/settings" class="space-y-6">
+        <!-- Telegram -->
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-6">
+            <h3 class="font-semibold mb-4 flex items-center gap-2">
+                <span class="text-blue-400">📱</span> Telegram Bot
+            </h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1.5">Bot Token</label>
+                    <input type="text" name="TELEGRAM_BOT_TOKEN"
+                        value="{{ index .settings "TELEGRAM_BOT_TOKEN" }}"
+                        placeholder="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ"
+                        class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
+                    <p class="text-xs text-slate-500 mt-1">Dari @BotFather di Telegram</p>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1.5">Chat ID (Admin)</label>
+                    <input type="text" name="TELEGRAM_CHAT_ID"
+                        value="{{ index .settings "TELEGRAM_CHAT_ID" }}"
+                        placeholder="-100123456789"
+                        class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
+                    <p class="text-xs text-slate-500 mt-1">Chat ID pribadi admin atau grup tujuan notifikasi</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Google OAuth -->
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-6">
+            <h3 class="font-semibold mb-4 flex items-center gap-2">
+                <span>🔐</span> Google OAuth2
+            </h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1.5">Client ID</label>
+                    <input type="text" name="GOOGLE_CLIENT_ID"
+                        value="{{ index .settings "GOOGLE_CLIENT_ID" }}"
+                        class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1.5">Client Secret</label>
+                    <input type="password" name="GOOGLE_CLIENT_SECRET"
+                        value="{{ index .settings "GOOGLE_CLIENT_SECRET" }}"
+                        class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+        </div>
+
+        <!-- General -->
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-6">
+            <h3 class="font-semibold mb-4">⚙️ General</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1.5">Nama Platform</label>
+                    <input type="text" name="SITE_NAME"
+                        value="{{ index .settings "SITE_NAME" }}"
+                        class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" name="ALLOW_REGISTRATION" value="true" id="allow_reg"
+                        {{ if eq (index .settings "ALLOW_REGISTRATION") "true" }}checked{{ end }}
+                        class="w-4 h-4 rounded accent-blue-600">
+                    <label for="allow_reg" class="text-sm text-slate-300">Izinkan pendaftaran user baru</label>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit"
+            class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition">
+            Simpan Settings
+        </button>
+    </form>
+</div>
+{{ end }}

@@ -1,0 +1,140 @@
+{{ template "layout.html" . }}
+{{ define "content" }}
+<div x-data="{
+    selected: [],
+    toast: '', toastType: 'success',
+    showToast(m, t='success') { this.toast=m; this.toastType=t; setTimeout(()=>this.toast='',3000) },
+    toggleAll(e) { this.selected = e.target.checked ? {{ range .campaigns }}[...this.selected.filter(i=>i!=={{.ID}}), {{.ID}}]{{ end }} : [] },
+    async bulkAction(action) {
+        if (this.selected.length === 0) { this.showToast('Pilih kampanye dulu', 'error'); return; }
+        if (!confirm(`${action} ${this.selected.length} kampanye?`)) return;
+        const r = await fetch('/campaigns/bulk', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action, campaign_ids: this.selected })
+        });
+        const d = await r.json();
+        this.showToast(d.message, r.ok ? 'success' : 'error');
+        if (r.ok) setTimeout(() => location.reload(), 1000);
+    }
+}" class="space-y-6">
+
+    <div x-show="toast" x-cloak x-transition
+        :class="toastType==='success'?'bg-green-900 border-green-700 text-green-300':'bg-red-900 border-red-700 text-red-300'"
+        class="fixed top-5 right-5 border rounded-lg px-4 py-3 text-sm z-50" x-text="toast">
+    </div>
+
+    <!-- Toolbar -->
+    <div class="flex items-center justify-between gap-4 flex-wrap">
+        <div class="flex items-center gap-3">
+            <!-- Account filter -->
+            <select onchange="window.location.href='?account_id='+this.value"
+                class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none">
+                <option value="">Semua Akun</option>
+                {{ range .accounts }}
+                <option value="{{ .ID }}" {{ if eq $.account_id .ID }}selected{{ end }}>{{ .Name }}</option>
+                {{ end }}
+            </select>
+            <!-- Bulk actions -->
+            <div x-show="selected.length > 0" x-cloak class="flex items-center gap-2">
+                <span class="text-sm text-slate-400" x-text="selected.length + ' dipilih'"></span>
+                <button @click="bulkAction('pause')" class="px-3 py-1.5 bg-yellow-600/20 border border-yellow-700 text-yellow-400 rounded-lg text-xs">Pause</button>
+                <button @click="bulkAction('activate')" class="px-3 py-1.5 bg-green-600/20 border border-green-700 text-green-400 rounded-lg text-xs">Aktifkan</button>
+                <button @click="bulkAction('delete')" class="px-3 py-1.5 bg-red-600/20 border border-red-700 text-red-400 rounded-lg text-xs">Hapus</button>
+            </div>
+        </div>
+        <a href="/campaigns/new" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+            <span>+</span> Buat Kampanye
+        </a>
+    </div>
+
+    <!-- Campaign list -->
+    <div class="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-700 text-slate-400 text-xs uppercase">
+                        <th class="px-4 py-3 text-left w-10">
+                            <input type="checkbox" @change="toggleAll($event)" class="accent-blue-600">
+                        </th>
+                        <th class="px-4 py-3 text-left">Nama</th>
+                        <th class="px-4 py-3 text-left">Ad Account</th>
+                        <th class="px-4 py-3 text-left">Objective</th>
+                        <th class="px-4 py-3 text-left">Budget/hari</th>
+                        <!-- currency auto-detect dari ad account -->
+                        <th class="px-4 py-3 text-left">Status</th>
+                        <th class="px-4 py-3 text-left">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-700">
+                    {{ range .campaigns }}
+                    <tr x-data="{ status: '{{ .Status }}', id: {{ .ID }} }">
+                        <td class="px-4 py-3">
+                            <input type="checkbox" :value="{{ .ID }}" x-model="selected" class="accent-blue-600">
+                        </td>
+                        <td class="px-4 py-4">
+                            <p class="font-medium text-white">{{ .Name }}</p>
+                            <p class="text-xs text-slate-500 mt-0.5">{{ .MetaCampaignID }}</p>
+                        </td>
+                        <td class="px-4 py-4 text-slate-400">{{ .AdAccountName }}</td>
+                        <td class="px-4 py-4">
+                            <span class="px-2 py-0.5 bg-slate-700 text-slate-300 rounded text-xs">
+                                {{ .Objective }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-4 text-slate-300">
+                            {{ if .DailyBudget }}
+                            {{ formatBudget .DailyBudget (index $.account_currency .AdAccountID) }}
+                            {{ else }}—{{ end }}
+                        </td>
+                        <td class="px-4 py-4">
+                            <button @click="
+                                fetch('/campaigns/' + id + '/toggle', {method:'POST'})
+                                .then(r=>r.json()).then(d=>{ status=d.status; showToast(d.message) })
+                            " :class="{
+                                'bg-green-900/50 text-green-400 border-green-700': status==='ACTIVE',
+                                'bg-yellow-900/50 text-yellow-400 border-yellow-700': status==='PAUSED',
+                                'bg-slate-700 text-slate-400 border-slate-600': status!=='ACTIVE'&&status!=='PAUSED'
+                            }" class="px-2 py-0.5 border rounded text-xs cursor-pointer" x-text="status">
+                            </button>
+                        </td>
+                        <td class="px-4 py-4">
+                            <div class="flex items-center gap-2">
+                                <button @click="
+                                    const b = prompt('Budget harian baru ({{ .currency }}):');
+                                    if (b) {
+                                        const fd = new FormData(); fd.append('daily_budget', b);
+                                        fetch('/campaigns/' + id + '/budget', {method:'POST', body:fd})
+                                        .then(r=>r.json()).then(d=>showToast(d.message))
+                                    }
+                                " class="text-xs text-blue-400 hover:text-blue-300">Budget</button>
+                                <button @click="
+                                    const n = prompt('Nama kampanye baru:');
+                                    if (n) {
+                                        const fd = new FormData(); fd.append('name', n);
+                                        fetch('/campaigns/' + id + '/duplicate', {method:'POST', body:fd})
+                                        .then(r=>r.json()).then(d=>{ showToast(d.message); setTimeout(()=>location.reload(),1000) })
+                                    }
+                                " class="text-xs text-slate-400 hover:text-slate-300">Duplikasi</button>
+                                <button @click="
+                                    if(confirm('Hapus kampanye ini?')) {
+                                        fetch('/campaigns/' + id, {method:'DELETE'})
+                                        .then(r=>r.json()).then(d=>{ showToast(d.message); setTimeout(()=>location.reload(),1000) })
+                                    }
+                                " class="text-xs text-red-400 hover:text-red-300">Hapus</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {{ else }}
+                    <tr>
+                        <td colspan="7" class="px-4 py-12 text-center text-slate-500">
+                            Belum ada kampanye. <a href="/campaigns/new" class="text-blue-400 hover:text-blue-300">Buat sekarang →</a>
+                        </td>
+                    </tr>
+                    {{ end }}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{{ end }}
