@@ -63,6 +63,11 @@ func main() {
 			return string(runes[i:j])
 		},
 		"gt0":            func(n int) bool { return n > 0 },
+		"divf64": func(a int64, b float64) float64 {
+			if b == 0 { return 0 }
+			return float64(a) / b
+		},
+		"int64": func(n int) int64 { return int64(n) },
 		"formatMoney":    helpers.FormatMoney,
 		"formatBudget":   helpers.FormatBudget,
 		"currencySymbol": helpers.CurrencySymbol,
