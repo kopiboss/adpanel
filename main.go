@@ -188,6 +188,8 @@ func main() {
 		usr.POST("/creatives/upload", handlers.UploadCreative)
 		usr.POST("/creatives/upload-multi", handlers.UploadToMultipleAccounts)
 		usr.GET("/creatives/:id/status", handlers.GetCreativeStatus)
+		usr.GET("/creatives/:id/thumbnail", handlers.ProxyThumbnail)
+		usr.POST("/creatives/:id/refresh-thumbnail", handlers.RefreshCreativeThumbnail)
 		usr.DELETE("/creatives/:id", handlers.DeleteCreativeHandler)
 		usr.GET("/analytics", handlers.ShowAnalytics)
 		usr.GET("/analytics/export", handlers.ExportAnalyticsCSV)
