@@ -35,6 +35,17 @@ func GetCreativeByID(id, userID uint64) (*Creative, error) {
 	return &c, nil
 }
 
+// GetCreativeByIDOnly cari berdasarkan ID saja tanpa filter user_id.
+// Dipakai sebagai fallback saat polling status, dengan security check di handler.
+func GetCreativeByIDOnly(id uint64) (*Creative, error) {
+	var c Creative
+	err := database.DB.Get(&c, "SELECT * FROM creatives WHERE id = ?", id)
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
 func ListCreativesByAdAccount(adAccountID, userID uint64) ([]Creative, error) {
 	var creatives []Creative
 	err := database.DB.Select(&creatives,
