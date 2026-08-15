@@ -1,98 +1,152 @@
 {{ define "content" }}
 <div x-data="{
-    step:1,loading:false,toast:'',toastType:'success',results:[],showResults:false,
+    step:1, loading:false, results:[], showResults:false,
     accountCurrencies:{ {{ range .accounts }}{{ .ID }}:'{{ .Currency }}',{{ end }} },
-    get selectedCurrency(){ if(!this.accountIDs.length)return 'IDR'; return this.accountCurrencies[this.accountIDs[0]]||'IDR' },
-    accountIDs:[],campaignName:'',objective:'OUTCOME_TRAFFIC',specialAdCategories:'NONE',
-    adSetName:'',dailyBudget:'',startDate:'',endDate:'',bidStrategy:'LOWEST_COST_WITHOUT_CAP',
-    countries:['ID'],ageMin:18,ageMax:65,gender:'all',placementMode:'auto',placements:[],
-    adName:'',creativeID:0,format:'image',primaryText:'',headline:'',description:'',cta:'LEARN_MORE',destURL:'',
-    saveAsTemplate:false,templateName:'',
-    showToast(m,t='success'){this.toast=m;this.toastType=t;setTimeout(()=>this.toast='',5000)},
-    addCountry(){const c=prompt('Kode negara (contoh: US,SG):');if(c&&!this.countries.includes(c.toUpperCase()))this.countries.push(c.toUpperCase())},
+    get selectedCurrency(){ return this.accountIDs.length?this.accountCurrencies[this.accountIDs[0]]||'IDR':'IDR' },
+    accountIDs:[], campaignName:'', objective:'OUTCOME_TRAFFIC', specialAdCategories:'NONE',
+    budgetLevel:'adset',
+    campaignBudget:'', adSetName:'', dailyBudget:'', startDate:'', endDate:'',
+    bidStrategy:'LOWEST_COST_WITHOUT_CAP', countries:['ID'], ageMin:18, ageMax:65, gender:'all',
+    adName:'', creativeID:0, format:'image', primaryText:'', headline:'', description:'',
+    cta:'LEARN_MORE', destURL:'', saveAsTemplate:false, templateName:'',
+
+    addCountry(){
+        Swal.fire({title:'Tambah Negara',input:'text',inputLabel:'Kode negara (contoh: US, SG, MY)',inputPlaceholder:'US',showCancelButton:true})
+        .then(r=>{if(r.isConfirmed&&r.value&&!this.countries.includes(r.value.toUpperCase()))this.countries.push(r.value.toUpperCase())})
+    },
+
+    get noCurrencyDecimals(){ return ['IDR','JPY','KRW','VND','HUF'].includes(this.selectedCurrency) },
+
     async launch(){
         this.loading=true;
-        const r=await fetch('/campaigns/launch',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                account_ids:this.accountIDs.map(Number),campaign_name:this.campaignName,
-                objective:this.objective,special_ad_categories:this.specialAdCategories,
-                adset_name:this.adSetName,daily_budget:parseFloat(this.dailyBudget),
-                currency:this.selectedCurrency,start_date:this.startDate,end_date:this.endDate,
-                bid_strategy:this.bidStrategy,countries:this.countries,
-                age_min:parseInt(this.ageMin),age_max:parseInt(this.ageMax),gender:this.gender,
-                placements:this.placementMode==='auto'?[]:this.placements,
-                ad_name:this.adName,creative_id:parseInt(this.creativeID)||0,format:this.format,
-                primary_text:this.primaryText,headline:this.headline,description:this.description,
-                cta:this.cta,dest_url:this.destURL,save_as_template:this.saveAsTemplate,template_name:this.templateName
-            })
-        });
-        const d=await r.json();this.loading=false;this.results=d.results||[];this.showResults=true;
+        const payload={
+            account_ids:this.accountIDs.map(Number), campaign_name:this.campaignName,
+            objective:this.objective, special_ad_categories:this.specialAdCategories,
+            adset_name:this.adSetName,
+            daily_budget:this.budgetLevel==='adset'?parseFloat(this.dailyBudget):0,
+            campaign_budget:this.budgetLevel==='campaign'?parseFloat(this.campaignBudget):0,
+            currency:this.selectedCurrency,
+            start_date:this.startDate, end_date:this.endDate, bid_strategy:this.bidStrategy,
+            countries:this.countries, age_min:parseInt(this.ageMin), age_max:parseInt(this.ageMax), gender:this.gender,
+            ad_name:this.adName, creative_id:parseInt(this.creativeID)||0, format:this.format,
+            primary_text:this.primaryText, headline:this.headline, description:this.description,
+            cta:this.cta, dest_url:this.destURL,
+            save_as_template:this.saveAsTemplate, template_name:this.templateName
+        };
+        const r=await fetch('/campaigns/launch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const d=await r.json();
+        this.loading=false; this.results=d.results||[]; this.showResults=true;
     }
-}" class="max-w-2xl">
-
-    <!-- Toast -->
-    <div x-show="toast" x-cloak x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
-        :class="toastType==='success'?'border-green-500/30 text-green-300':'border-red-500/30 text-red-300'"
-        class="fixed top-5 right-5 border rounded-xl px-4 py-3 text-sm z-50 shadow-xl" style="background:#0d1117" x-text="toast">
-    </div>
+}" class="max-w-2xl mx-auto">
 
     <!-- Results modal -->
-    <div x-show="showResults" x-cloak class="fixed inset-0 flex items-center justify-center z-50" style="background:rgba(0,0,0,0.7)">
+    <div x-show="showResults" x-cloak class="fixed inset-0 flex items-center justify-center z-50" style="background:rgba(0,0,0,0.7);backdrop-filter:blur(4px)">
         <div class="card p-6 max-w-md w-full mx-4">
             <h3 class="text-sm font-semibold text-white mb-4">Hasil Launch Kampanye</h3>
             <div class="space-y-2">
                 <template x-for="r in results" :key="r.account_id">
-                    <div :class="r.success?'border-green-500/20':'border-red-500/20'" class="border rounded-xl p-3" :style="r.success?'background:rgba(34,197,94,0.05)':'background:rgba(239,68,68,0.05)'">
+                    <div :class="r.success?'border-green-500/20 bg-green-500/5':'border-red-500/20 bg-red-500/5'" class="border rounded-xl p-3">
                         <p class="text-sm font-medium text-white" x-text="r.name||'Akun #'+r.account_id"></p>
                         <p class="text-xs mt-1" :class="r.success?'text-green-400':'text-red-400'" x-text="r.success?'✓ Berhasil diluncurkan':'✗ '+r.error"></p>
                     </div>
                 </template>
             </div>
             <div class="flex gap-3 mt-5">
-                <a href="/campaigns" class="btn-primary flex-1 justify-center">Lihat Kampanye</a>
-                <button @click="showResults=false" class="btn-ghost flex-1 justify-center">Tutup</button>
+                <a href="/campaigns" class="btn btn-primary flex-1 justify-center">Lihat Kampanye</a>
+                <button @click="showResults=false" class="btn btn-ghost flex-1 justify-center">Tutup</button>
             </div>
         </div>
     </div>
 
     <!-- Step indicator -->
     <div class="flex items-center mb-6">
-        <template x-for="s in [1,2,3]">
+        <template x-for="s in [1,2,3]" :key="s">
             <div class="flex items-center">
-                <div :class="step>=s?'bg-blue-600 text-white':'text-slate-500'" class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors"
-                    style="border:1px solid rgba(255,255,255,0.08)" :style="step>=s?'border-color:transparent':''">
-                    <span x-text="s"></span>
+                <div :class="step>=s?'bg-blue-600 text-white border-transparent':'border-white/10 text-slate-500'"
+                    class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border transition-all">
+                    <span x-text="step>s?'✓':s"></span>
                 </div>
-                <span class="ml-2 text-xs font-medium" :class="step>=s?'text-white':'text-slate-600'" x-text="['Campaign','Ad Set','Ad'][s-1]"></span>
-                <template x-if="s<3"><div :class="step>s?'bg-blue-600':''" class="h-px w-10 mx-3 transition-colors" style="background:rgba(255,255,255,0.08)"></div></template>
+                <span class="ml-2 text-xs font-medium" :class="step>=s?'text-white':'text-slate-600'"
+                    x-text="['Campaign','Ad Set','Ad'][s-1]"></span>
+                <template x-if="s<3">
+                    <div :class="step>s?'bg-blue-600':''" class="h-px w-10 mx-3 transition-colors" style="background:rgba(255,255,255,0.08)"></div>
+                </template>
             </div>
         </template>
     </div>
 
-    <!-- Step 1 -->
+    <!-- STEP 1: Campaign -->
     <div x-show="step===1" class="card p-6 space-y-5">
         <h3 class="text-sm font-semibold text-white">Campaign</h3>
-        <div>
-            <label class="block text-xs text-slate-400 font-medium mb-2">Pilih Ad Account <span class="text-slate-600">(bisa multi)</span></label>
-            <div class="space-y-1.5 max-h-44 overflow-y-auto">
+
+        <!-- Account dropdown multi-select dengan Alpine -->
+        <div x-data="{ open:false }">
+            <label class="block text-xs mb-1.5" style="color:var(--text-sub)">
+                Ad Account <span style="color:var(--text-muted)">(bisa pilih lebih dari satu)</span>
+            </label>
+            <div class="relative">
+                <button @click="open=!open" type="button" class="input text-left flex items-center justify-between" style="cursor:pointer">
+                    <span x-text="accountIDs.length?accountIDs.length+' akun dipilih':'Pilih Ad Account...'" :class="accountIDs.length?'text-white':''" style="color:var(--text-sub)"></span>
+                    <svg class="w-4 h-4 flex-shrink-0 transition-transform" :class="open?'rotate-180':''" style="color:var(--text-sub)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div x-show="open" x-cloak @click.outside="open=false"
+                    class="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden z-20 border"
+                    style="background:#0a1020;border-color:rgba(59,130,246,0.3);box-shadow:0 8px 32px rgba(0,0,0,0.4)">
+                    {{ range .accounts }}
+                    <label class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/5 transition border-b" style="border-color:rgba(255,255,255,0.04)">
+                        <input type="checkbox" value="{{ .ID }}" x-model="accountIDs" class="w-4 h-4 accent-blue-600 flex-shrink-0">
+                        <div>
+                            <p class="text-sm text-white font-medium">{{ .Name }}</p>
+                            <p class="text-xs" style="color:var(--text-sub)">{{ .Currency }}</p>
+                        </div>
+                    </label>
+                    {{ else }}
+                    <div class="px-4 py-4 text-sm text-slate-500 text-center">Belum ada ad account aktif</div>
+                    {{ end }}
+                </div>
+            </div>
+            <!-- Chip selected -->
+            <div x-show="accountIDs.length>0" x-cloak class="flex flex-wrap gap-1.5 mt-2">
                 {{ range .accounts }}
-                <label class="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-white/5 transition" style="border:1px solid rgba(255,255,255,0.05)">
-                    <input type="checkbox" value="{{ .ID }}" x-model="accountIDs" class="w-4 h-4 accent-blue-600 flex-shrink-0">
-                    <div>
-                        <p class="text-sm text-white font-medium">{{ .Name }}</p>
-                        <p class="text-xs text-slate-500">{{ .Currency }}</p>
-                    </div>
-                </label>
+                <template x-if="accountIDs.includes({{ .ID }})">
+                    <span class="badge badge-blue flex items-center gap-1 text-xs">
+                        {{ .Name }}
+                        <button @click="accountIDs=accountIDs.filter(i=>i!=={{ .ID }})" class="hover:text-red-400 transition">×</button>
+                    </span>
+                </template>
                 {{ end }}
             </div>
         </div>
+
         <div>
-            <label class="block text-xs text-slate-400 font-medium mb-1.5">Nama Kampanye</label>
+            <label class="block text-xs mb-1.5" style="color:var(--text-sub)">Nama Kampanye</label>
             <input x-model="campaignName" type="text" placeholder="Campaign name" class="input">
         </div>
+
+        <!-- Budget level -->
+        <div>
+            <label class="block text-xs mb-2" style="color:var(--text-sub)">Level Budget</label>
+            <div class="flex gap-2">
+                <button @click="budgetLevel='campaign'" type="button"
+                    :class="budgetLevel==='campaign'?'border-blue-500 bg-blue-500/10 text-blue-400':'border-white/8 text-slate-500'"
+                    class="flex-1 py-2.5 px-3 rounded-xl border text-xs font-medium transition text-center">
+                    Campaign Budget<br><span class="text-xs opacity-60">(CBO)</span>
+                </button>
+                <button @click="budgetLevel='adset'" type="button"
+                    :class="budgetLevel==='adset'?'border-blue-500 bg-blue-500/10 text-blue-400':'border-white/8 text-slate-500'"
+                    class="flex-1 py-2.5 px-3 rounded-xl border text-xs font-medium transition text-center">
+                    Ad Set Budget<br><span class="text-xs opacity-60">(ABO)</span>
+                </button>
+            </div>
+            <div x-show="budgetLevel==='campaign'" x-cloak class="mt-3">
+                <label class="block text-xs mb-1.5" style="color:var(--text-sub)">Budget Campaign Harian (<span x-text="selectedCurrency"></span>)</label>
+                <input x-model="campaignBudget" type="number" :step="noCurrencyDecimals?'1000':'0.01'" :placeholder="noCurrencyDecimals?'500000':'50.00'" class="input">
+            </div>
+        </div>
+
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <label class="block text-xs text-slate-400 font-medium mb-1.5">Objective</label>
+                <label class="block text-xs mb-1.5" style="color:var(--text-sub)">Objective</label>
                 <select x-model="objective" class="input">
                     <option>OUTCOME_TRAFFIC</option><option>OUTCOME_LEADS</option>
                     <option>OUTCOME_SALES</option><option>OUTCOME_AWARENESS</option>
@@ -100,132 +154,134 @@
                 </select>
             </div>
             <div>
-                <label class="block text-xs text-slate-400 font-medium mb-1.5">Special Category</label>
+                <label class="block text-xs mb-1.5" style="color:var(--text-sub)">Special Category</label>
                 <select x-model="specialAdCategories" class="input">
                     <option>NONE</option><option>CREDIT</option><option>EMPLOYMENT</option>
                     <option>HOUSING</option><option>ISSUES_ELECTIONS_POLITICS</option>
                 </select>
             </div>
         </div>
-        <div class="flex justify-end">
-            <button @click="if(accountIDs.length&&campaignName)step=2;else showToast('Pilih akun dan isi nama','error')" class="btn-primary">Lanjut →</button>
+        <div class="flex justify-end pt-2">
+            <button @click="if(accountIDs.length&&campaignName)step=2;else swalError('Pilih akun dan isi nama kampanye')" class="btn btn-primary">Lanjut →</button>
         </div>
     </div>
 
-    <!-- Step 2 -->
+    <!-- STEP 2: Ad Set -->
     <div x-show="step===2" class="card p-6 space-y-5">
         <h3 class="text-sm font-semibold text-white">Ad Set</h3>
         <div>
-            <label class="block text-xs text-slate-400 font-medium mb-1.5">Nama Ad Set</label>
+            <label class="block text-xs mb-1.5" style="color:var(--text-sub)">Nama Ad Set</label>
             <input x-model="adSetName" type="text" placeholder="Ad set name" class="input">
         </div>
         <div class="grid grid-cols-2 gap-4">
-            <div>
-                <label class="block text-xs text-slate-400 font-medium mb-1.5">Budget Harian (<span x-text="selectedCurrency"></span>)</label>
-                <input x-model="dailyBudget" type="number" :step="['IDR','JPY','KRW','VND'].includes(selectedCurrency)?'1000':'0.01'"
-                    :placeholder="selectedCurrency==='IDR'?'100000':'10.00'" class="input">
+            <div x-show="budgetLevel==='adset'">
+                <label class="block text-xs mb-1.5" style="color:var(--text-sub)">Budget Harian (<span x-text="selectedCurrency"></span>)</label>
+                <input x-model="dailyBudget" type="number" :step="noCurrencyDecimals?'1000':'0.01'" :placeholder="noCurrencyDecimals?'100000':'10.00'" class="input">
             </div>
             <div>
-                <label class="block text-xs text-slate-400 font-medium mb-1.5">Bid Strategy</label>
+                <label class="block text-xs mb-1.5" style="color:var(--text-sub)">Bid Strategy</label>
                 <select x-model="bidStrategy" class="input">
                     <option>LOWEST_COST_WITHOUT_CAP</option><option>COST_CAP</option><option>BID_CAP</option>
                 </select>
             </div>
             <div>
-                <label class="block text-xs text-slate-400 font-medium mb-1.5">Tanggal Mulai</label>
+                <label class="block text-xs mb-1.5" style="color:var(--text-sub)">Tanggal Mulai</label>
                 <input x-model="startDate" type="date" class="input">
             </div>
             <div>
-                <label class="block text-xs text-slate-400 font-medium mb-1.5">Tanggal Selesai <span class="text-slate-600">(opsional)</span></label>
+                <label class="block text-xs mb-1.5" style="color:var(--text-sub)">Tanggal Selesai <span style="color:var(--text-muted)">(opsional)</span></label>
                 <input x-model="endDate" type="date" class="input">
             </div>
         </div>
         <div>
-            <label class="block text-xs text-slate-400 font-medium mb-2">Negara Target</label>
-            <div class="flex flex-wrap gap-2">
+            <label class="block text-xs mb-2" style="color:var(--text-sub)">Negara Target</label>
+            <div class="flex flex-wrap gap-1.5">
                 <template x-for="c in countries" :key="c">
-                    <span class="badge-blue flex items-center gap-1">
+                    <span class="badge badge-blue flex items-center gap-1">
                         <span x-text="c"></span>
                         <button @click="countries.splice(countries.indexOf(c),1)" class="hover:text-red-400 transition text-xs">×</button>
                     </span>
                 </template>
-                <button @click="addCountry()" class="text-xs text-blue-400 hover:text-blue-300 px-3 py-1 rounded-full" style="border:1px dashed rgba(59,130,246,0.3)">+ Tambah</button>
+                <button @click="addCountry()" type="button" class="badge badge-gray cursor-pointer hover:border-blue-500/40 transition">+ Tambah</button>
             </div>
         </div>
         <div class="grid grid-cols-3 gap-4">
-            <div><label class="block text-xs text-slate-400 font-medium mb-1.5">Usia Min</label><input x-model="ageMin" type="number" min="18" max="65" class="input"></div>
-            <div><label class="block text-xs text-slate-400 font-medium mb-1.5">Usia Max</label><input x-model="ageMax" type="number" min="18" max="65" class="input"></div>
-            <div><label class="block text-xs text-slate-400 font-medium mb-1.5">Gender</label>
+            <div><label class="block text-xs mb-1.5" style="color:var(--text-sub)">Usia Min</label><input x-model="ageMin" type="number" min="18" max="65" class="input"></div>
+            <div><label class="block text-xs mb-1.5" style="color:var(--text-sub)">Usia Max</label><input x-model="ageMax" type="number" min="18" max="65" class="input"></div>
+            <div>
+                <label class="block text-xs mb-1.5" style="color:var(--text-sub)">Gender</label>
                 <select x-model="gender" class="input"><option value="all">Semua</option><option value="male">Pria</option><option value="female">Wanita</option></select>
             </div>
         </div>
-        <div class="flex justify-between">
-            <button @click="step=1" class="btn-ghost">← Kembali</button>
-            <button @click="if(adSetName&&dailyBudget)step=3;else showToast('Isi nama dan budget','error')" class="btn-primary">Lanjut →</button>
+        <div class="flex justify-between pt-2">
+            <button @click="step=1" class="btn btn-ghost">← Kembali</button>
+            <button @click="if(adSetName&&(budgetLevel==='campaign'||dailyBudget))step=3;else swalError('Isi nama ad set dan budget')" class="btn btn-primary">Lanjut →</button>
         </div>
     </div>
 
-    <!-- Step 3 -->
+    <!-- STEP 3: Ad -->
     <div x-show="step===3" class="card p-6 space-y-5">
         <h3 class="text-sm font-semibold text-white">Ad</h3>
         <div>
-            <label class="block text-xs text-slate-400 font-medium mb-1.5">Nama Ad</label>
+            <label class="block text-xs mb-1.5" style="color:var(--text-sub)">Nama Ad</label>
             <input x-model="adName" type="text" placeholder="Ad name" class="input">
         </div>
         <div>
-            <label class="block text-xs text-slate-400 font-medium mb-2">Creative Library</label>
-            <div class="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+            <label class="block text-xs mb-2" style="color:var(--text-sub)">Creative Library</label>
+            {{ if .creatives }}
+            <div class="grid grid-cols-3 gap-2 max-h-44 overflow-y-auto">
                 {{ range .creatives }}{{ if eq .UploadStatus "done" }}
-                <label :class="creativeID=={{ .ID }}?'border-blue-500':'border-white/10'" class="border rounded-xl p-2 cursor-pointer hover:border-blue-400 transition">
+                <label :class="creativeID=={{ .ID }}?'border-blue-500 bg-blue-500/8':'border-white/8'"
+                    class="border rounded-xl p-2 cursor-pointer hover:border-blue-400/50 transition">
                     <input type="radio" name="creative" value="{{ .ID }}" x-model="creativeID" class="hidden">
                     {{ if .ThumbnailURL }}
-                    <img src="{{ .ThumbnailURL }}" class="w-full h-16 object-cover rounded-lg mb-1.5">
+                    <img src="{{ .ThumbnailURL }}" class="w-full h-14 object-cover rounded-lg mb-1.5">
                     {{ else }}
-                    <div class="w-full h-16 rounded-lg mb-1.5 flex items-center justify-center text-2xl" style="background:rgba(255,255,255,0.04)">{{ if eq .Type "video" }}🎬{{ else }}🖼{{ end }}</div>
+                    <div class="w-full h-14 rounded-lg mb-1.5 flex items-center justify-center text-2xl" style="background:rgba(255,255,255,0.04)">{{ if eq .Type "video" }}🎬{{ else }}🖼{{ end }}</div>
                     {{ end }}
                     <p class="text-xs text-slate-400 truncate">{{ .Name }}</p>
                 </label>
-                {{ end }}{{ else }}
-                <p class="text-xs text-slate-600 col-span-3 py-4 text-center">Belum ada creative yang siap digunakan</p>
-                {{ end }}
+                {{ end }}{{ end }}
             </div>
+            {{ else }}
+            <div class="py-6 text-center rounded-xl border border-dashed" style="border-color:rgba(255,255,255,0.08)">
+                <p class="text-sm text-slate-500">Belum ada creative</p>
+                <a href="/creatives" target="_blank" class="text-xs text-blue-400 hover:text-blue-300 mt-1 inline-block">Upload creative dulu →</a>
+            </div>
+            {{ end }}
         </div>
         <div class="grid grid-cols-2 gap-4">
-            <div><label class="block text-xs text-slate-400 font-medium mb-1.5">Format</label>
-                <select x-model="format" class="input"><option value="image">Single Image</option><option value="video">Single Video</option></select>
-            </div>
-            <div><label class="block text-xs text-slate-400 font-medium mb-1.5">Call to Action</label>
-                <select x-model="cta" class="input">
-                    <option>LEARN_MORE</option><option>SHOP_NOW</option><option>SIGN_UP</option>
-                    <option>CONTACT_US</option><option>DOWNLOAD</option><option>GET_QUOTE</option>
-                </select>
-            </div>
+            <div><label class="block text-xs mb-1.5" style="color:var(--text-sub)">Format</label>
+                <select x-model="format" class="input"><option value="image">Single Image</option><option value="video">Single Video</option></select></div>
+            <div><label class="block text-xs mb-1.5" style="color:var(--text-sub)">Call to Action</label>
+                <select x-model="cta" class="input"><option>LEARN_MORE</option><option>SHOP_NOW</option><option>SIGN_UP</option><option>CONTACT_US</option><option>DOWNLOAD</option><option>GET_QUOTE</option></select></div>
         </div>
         <div>
-            <label class="block text-xs text-slate-400 font-medium mb-1.5">Primary Text</label>
+            <label class="block text-xs mb-1.5" style="color:var(--text-sub)">Primary Text</label>
             <textarea x-model="primaryText" rows="3" placeholder="Teks utama iklan..." class="input resize-none"></textarea>
         </div>
         <div class="grid grid-cols-2 gap-4">
-            <div><label class="block text-xs text-slate-400 font-medium mb-1.5">Headline</label><input x-model="headline" type="text" placeholder="Judul iklan" class="input"></div>
-            <div><label class="block text-xs text-slate-400 font-medium mb-1.5">Description</label><input x-model="description" type="text" placeholder="Deskripsi" class="input"></div>
+            <div><label class="block text-xs mb-1.5" style="color:var(--text-sub)">Headline</label><input x-model="headline" type="text" placeholder="Judul iklan" class="input"></div>
+            <div><label class="block text-xs mb-1.5" style="color:var(--text-sub)">Description</label><input x-model="description" type="text" placeholder="Deskripsi" class="input"></div>
         </div>
         <div>
-            <label class="block text-xs text-slate-400 font-medium mb-1.5">Destination URL</label>
+            <label class="block text-xs mb-1.5" style="color:var(--text-sub)">Destination URL</label>
             <input x-model="destURL" type="url" placeholder="https://..." class="input">
         </div>
-        <div class="p-4 rounded-xl" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06)">
+        <div class="p-4 rounded-xl border" style="border-color:var(--border);background:rgba(255,255,255,0.02)">
             <label class="flex items-center gap-3 cursor-pointer">
                 <input type="checkbox" x-model="saveAsTemplate" class="w-4 h-4 accent-blue-600">
-                <span class="text-sm text-slate-300">Simpan sebagai Template</span>
+                <span class="text-sm text-slate-300">Simpan sebagai Template untuk dipakai lagi</span>
             </label>
             <div x-show="saveAsTemplate" x-cloak class="mt-3">
                 <input x-model="templateName" type="text" placeholder="Nama template" class="input">
             </div>
         </div>
-        <div class="flex justify-between">
-            <button @click="step=2" class="btn-ghost">← Kembali</button>
-            <button @click="launch()" :disabled="loading" :class="{'opacity-50':loading}" class="btn-primary" style="background:linear-gradient(135deg,#059669,#047857)">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        <div class="flex justify-between pt-2">
+            <button @click="step=2" class="btn btn-ghost">← Kembali</button>
+            <button @click="launch()" :disabled="loading" :class="{'opacity-50':loading}" class="btn btn-primary" style="background:linear-gradient(135deg,#059669,#047857)">
+                <svg x-show="loading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <svg x-show="!loading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                 <span x-text="loading?'Meluncurkan...':'Launch Kampanye'"></span>
             </button>
         </div>
