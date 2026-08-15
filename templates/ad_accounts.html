@@ -1,4 +1,3 @@
-{{ template "layout.html" . }}
 {{ define "content" }}
 <div x-data="{ toast: '', toastType: 'success', showToast(m,t='success'){this.toast=m;this.toastType=t;setTimeout(()=>this.toast='',3000)} }" class="space-y-6">
 
