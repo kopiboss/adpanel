@@ -1,64 +1,40 @@
 {{ define "content" }}
-<div class="space-y-6">
-    <div class="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
-        <div class="p-5 border-b border-slate-700">
-            <h3 class="font-semibold">Sync Logs</h3>
-            <p class="text-sm text-slate-400 mt-1">Riwayat sinkronisasi data kampanye dan insights</p>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="border-b border-slate-700 text-slate-400 text-xs uppercase">
-                        <th class="text-left px-5 py-3">Ad Account</th>
-                        <th class="text-left px-5 py-3">Tipe</th>
-                        <th class="text-left px-5 py-3">Status</th>
-                        <th class="text-left px-5 py-3">Durasi</th>
-                        <th class="text-left px-5 py-3">Waktu</th>
-                        <th class="text-left px-5 py-3">Error</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-700">
-                    {{ if .logs }}
-                    {{ range .logs }}
-                    <tr class="hover:bg-slate-700/20">
-                        <td class="px-5 py-3 font-medium text-white">{{ if .AdAccountName }}{{ .AdAccountName }}{{ else }}—{{ end }}</td>
-                        <td class="px-5 py-3">
-                            <span class="{{ if eq .SyncType "manual" }}text-blue-400{{ else }}text-slate-400{{ end }} text-xs capitalize">
-                                {{ .SyncType }}
-                            </span>
-                        </td>
-                        <td class="px-5 py-3">
-                            {{ if eq .Status "success" }}
-                            <span class="px-2 py-0.5 bg-green-900/50 text-green-400 border border-green-700 rounded text-xs">✓ Sukses</span>
-                            {{ else if eq .Status "failed" }}
-                            <span class="px-2 py-0.5 bg-red-900/50 text-red-400 border border-red-700 rounded text-xs">✗ Gagal</span>
-                            {{ else }}
-                            <span class="px-2 py-0.5 bg-yellow-900/50 text-yellow-400 border border-yellow-700 rounded text-xs">⟳ Running</span>
-                            {{ end }}
-                        </td>
-                        <td class="px-5 py-3 text-slate-400 text-xs">
-                            {{ if .DurationMs }}{{ .DurationMs }}ms{{ else }}—{{ end }}
-                        </td>
-                        <td class="px-5 py-3 text-slate-400 text-xs">{{ .CreatedAt.Format "02 Jan 2006 15:04:05" }}</td>
-                        <td class="px-5 py-3 text-xs">
-                            {{ if .ErrorMessage }}
-                            <span class="text-red-400 truncate max-w-xs block" title="{{ .ErrorMessage }}">{{ .ErrorMessage }}</span>
-                            {{ else }}
-                            <span class="text-slate-600">—</span>
-                            {{ end }}
-                        </td>
-                    </tr>
-                    {{ end }}
-                    {{ else }}
-                    <tr>
-                        <td colspan="6" class="px-5 py-12 text-center text-slate-500">
-                            Belum ada riwayat sync
-                        </td>
-                    </tr>
-                    {{ end }}
-                </tbody>
-            </table>
-        </div>
+<div class="card overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/5">
+        <h3 class="text-sm font-semibold text-white">Riwayat Sync</h3>
+        <p class="text-xs text-slate-500 mt-0.5">Log sinkronisasi kampanye dan insights</p>
     </div>
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="border-b border-white/5">
+                <th class="text-left px-5 py-3 text-xs text-slate-500 font-medium uppercase tracking-wide">Ad Account</th>
+                <th class="text-left px-5 py-3 text-xs text-slate-500 font-medium uppercase tracking-wide">Tipe</th>
+                <th class="text-left px-5 py-3 text-xs text-slate-500 font-medium uppercase tracking-wide">Status</th>
+                <th class="text-left px-5 py-3 text-xs text-slate-500 font-medium uppercase tracking-wide">Durasi</th>
+                <th class="text-left px-5 py-3 text-xs text-slate-500 font-medium uppercase tracking-wide">Waktu</th>
+                <th class="text-left px-5 py-3 text-xs text-slate-500 font-medium uppercase tracking-wide">Error</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ if .logs }}
+            {{ range .logs }}
+            <tr class="table-row">
+                <td class="px-5 py-3 font-medium text-white text-sm">{{ if .AdAccountName }}{{ .AdAccountName }}{{ else }}—{{ end }}</td>
+                <td class="px-5 py-3"><span class="text-xs {{ if eq .SyncType "manual" }}text-blue-400{{ else }}text-slate-500{{ end }} capitalize">{{ .SyncType }}</span></td>
+                <td class="px-5 py-3">
+                    {{ if eq .Status "success" }}<span class="badge-green">Sukses</span>
+                    {{ else if eq .Status "failed" }}<span class="badge-red">Gagal</span>
+                    {{ else }}<span class="badge-yellow">Running</span>{{ end }}
+                </td>
+                <td class="px-5 py-3 text-xs text-slate-500">{{ if .DurationMs }}{{ .DurationMs }}ms{{ else }}—{{ end }}</td>
+                <td class="px-5 py-3 text-xs text-slate-500">{{ .CreatedAt.Format "02 Jan 15:04:05" }}</td>
+                <td class="px-5 py-3 text-xs text-red-400/70 max-w-xs truncate">{{ if .ErrorMessage }}{{ .ErrorMessage }}{{ else }}<span class="text-slate-700">—</span>{{ end }}</td>
+            </tr>
+            {{ end }}
+            {{ else }}
+            <tr><td colspan="6" class="px-5 py-16 text-center text-slate-600 text-sm">Belum ada riwayat sync</td></tr>
+            {{ end }}
+        </tbody>
+    </table>
 </div>
 {{ end }}
