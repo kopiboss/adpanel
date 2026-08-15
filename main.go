@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -65,6 +66,26 @@ func main() {
 		"formatMoney":    helpers.FormatMoney,
 		"formatBudget":   helpers.FormatBudget,
 		"currencySymbol": helpers.CurrencySymbol,
+		"formatFileSize": func(bytes int64) string {
+			if bytes <= 0 {
+				return ""
+			}
+			const (
+				KB = 1024
+				MB = 1024 * KB
+				GB = 1024 * MB
+			)
+			switch {
+			case bytes >= GB:
+				return fmt.Sprintf("%.2f GB", float64(bytes)/float64(GB))
+			case bytes >= MB:
+				return fmt.Sprintf("%.1f MB", float64(bytes)/float64(MB))
+			case bytes >= KB:
+				return fmt.Sprintf("%.0f KB", float64(bytes)/float64(KB))
+			default:
+				return fmt.Sprintf("%d B", bytes)
+			}
+		},
 	}
 
 	readFile := func(path string) string {
