@@ -1,147 +1,88 @@
 {{ define "content" }}
 <div x-data="{
-    toast:'',toastType:'success',
-    search:'',
-    selected:[],
-    showToast(m,t='success'){this.toast=m;this.toastType=t;setTimeout(()=>this.toast='',3000)},
     accounts: {{ .accounts | js }},
-    get filtered(){ return this.accounts.filter(a=>!this.search||a.name.toLowerCase().includes(this.search.toLowerCase())||a.meta_account_id.includes(this.search)) },
+    search:'', selected:[],
+    get filtered(){ const q=this.search.toLowerCase(); return this.accounts.filter(a=>!q||a.name.toLowerCase().includes(q)||a.meta_account_id.includes(q)) },
     get allSelected(){ return this.filtered.length>0&&this.filtered.every(a=>this.selected.includes(a.id)) },
-    toggleAll(){ const ids=this.filtered.map(a=>a.id); if(this.allSelected){this.selected=this.selected.filter(id=>!ids.includes(id))}else{ids.forEach(id=>{if(!this.selected.includes(id))this.selected.push(id)})} },
+    toggleAll(){ const ids=this.filtered.map(a=>a.id); if(this.allSelected){this.selected=this.selected.filter(id=>!ids.includes(id))}else ids.forEach(id=>{if(!this.selected.includes(id))this.selected.push(id)}) },
     async bulkSync(){
-        if(!this.selected.length){this.showToast('Pilih akun dulu','error');return}
-        this.showToast('Memulai sync '+this.selected.length+' akun...');
-        for(const id of this.selected){
-            fetch('/sync/'+id,{method:'POST'}).then(r=>r.json()).then(d=>this.showToast(d.message))
-        }
+        if(!this.selected.length){swalError('Pilih akun dulu');return}
+        swalInfo('Memulai sync '+this.selected.length+' akun...');
+        for(const id of this.selected){ fetch('/sync/'+id,{method:'POST'}) }
     }
 }" class="space-y-4">
 
-    <div x-show="toast" x-cloak x-transition:enter="transition ease-out duration-200"
-        x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
-        :class="toastType==='success'?'border-green-500/30 text-green-300':'border-red-500/30 text-red-300'"
-        class="fixed top-5 right-5 border rounded-xl px-4 py-3 text-sm z-50 shadow-2xl"
-        style="background:rgba(13,17,23,0.95)" x-text="toast">
-    </div>
-
     <!-- Toolbar -->
     <div class="flex items-center gap-3 flex-wrap">
-        <!-- Search -->
         <div class="relative flex-1 min-w-48">
-            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style="color:var(--text-sub)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             <input x-model="search" type="text" placeholder="Cari nama atau ID akun..." class="input" style="padding-left:2.25rem">
         </div>
-
-        <!-- Stats -->
-        <div class="flex items-center gap-2 text-xs text-slate-500">
-            <span class="badge-gray" x-text="filtered.length+' akun'"></span>
-            <template x-if="selected.length>0">
-                <span class="badge-blue" x-text="selected.length+' dipilih'"></span>
-            </template>
+        <div class="flex items-center gap-2">
+            <span class="badge badge-gray" x-text="filtered.length+' akun'"></span>
+            <span x-show="selected.length>0" x-cloak class="badge badge-blue" x-text="selected.length+' dipilih'"></span>
         </div>
-
-        <!-- Bulk actions -->
-        <template x-if="selected.length>0">
-            <div class="flex items-center gap-2">
-                <button @click="bulkSync()" class="btn-ghost" style="padding:6px 12px;font-size:12px;color:#60a5fa;border-color:rgba(59,130,246,0.2)">
-                    ⟳ Sync Pilihan (<span x-text="selected.length"></span>)
-                </button>
-            </div>
-        </template>
-
-        <a href="/credentials" class="btn-ghost ml-auto" style="padding:7px 14px;font-size:12px">
-            + Tambah Akun
+        <button x-show="selected.length>0" x-cloak @click="bulkSync()" class="btn btn-ghost" style="font-size:12px;color:#60a5fa;border-color:rgba(59,130,246,0.2)">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Sync Pilihan
+        </button>
+        <a href="/credentials" class="btn btn-ghost ml-auto" style="font-size:12px">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Tambah Akun
         </a>
     </div>
 
     <div class="card overflow-hidden">
-        <!-- Table header with select all -->
-        <div class="flex items-center gap-3 px-5 py-3 border-b border-white/5" style="background:rgba(255,255,255,0.02)">
-            <input type="checkbox" :checked="allSelected" @change="toggleAll()" class="w-4 h-4 accent-blue-600 flex-shrink-0">
-            <span class="text-xs text-slate-500 font-medium uppercase tracking-wide">Nama Akun</span>
-            <span class="ml-auto text-xs text-slate-600" x-text="filtered.length+' dari {{ len .accounts }} akun'"></span>
+        <div class="flex items-center gap-3 px-5 py-3 border-b" style="border-color:var(--border);background:rgba(255,255,255,0.01)">
+            <input type="checkbox" :checked="allSelected" @change="toggleAll()" class="w-4 h-4 accent-blue-600">
+            <span class="text-xs font-medium uppercase tracking-wide" style="color:var(--text-sub)">Nama Akun</span>
+            <span class="ml-auto text-xs" style="color:var(--text-muted)" x-text="filtered.length+' dari {{ len .accounts }} akun'"></span>
         </div>
 
         {{ if .accounts }}
         <div>
             <template x-for="acc in filtered" :key="acc.id">
-                <div x-data="{ isActive: acc.is_active, id: acc.id, syncing: false }"
-                    class="table-row flex items-center gap-4 px-5 py-4">
-                    <!-- Checkbox -->
+                <div x-data="{ isActive:acc.is_active, syncing:false }" class="table-row flex items-center gap-3 px-5 py-4">
                     <input type="checkbox" :value="acc.id" x-model="selected" class="w-4 h-4 accent-blue-600 flex-shrink-0">
-
-                    <!-- Icon -->
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg"
-                        :style="isActive?'background:rgba(59,130,246,0.1)':'background:rgba(255,255,255,0.03)'">📊</div>
-
-                    <!-- Info -->
+                    <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base" :style="isActive?'background:rgba(59,130,246,0.1)':'background:rgba(255,255,255,0.03)'">📊</div>
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-0.5">
                             <span class="text-sm font-medium text-white" x-text="acc.name"></span>
-                            <span x-show="!isActive" class="badge-gray">Nonaktif</span>
+                            <span x-show="!isActive" class="badge badge-gray">Nonaktif</span>
                         </div>
-                        <p class="text-xs text-slate-500" x-text="acc.meta_account_id+' · '+acc.currency+' · '+acc.timezone"></p>
-                        <p class="text-xs text-slate-600 mt-0.5" x-text="acc.credential_label||''"></p>
+                        <p class="text-xs" style="color:var(--text-sub)" x-text="acc.meta_account_id+' · '+acc.currency+' · '+acc.timezone"></p>
+                        <p class="text-xs mt-0.5" style="color:var(--text-muted)" x-text="acc.credential_label||''"></p>
                     </div>
-
-                    <!-- Actions -->
                     <div class="flex items-center gap-2 flex-shrink-0">
-                        <button @click="
-                            syncing=true;
-                            fetch('/sync/'+id,{method:'POST'})
-                            .then(r=>r.json())
-                            .then(d=>{syncing=false;showToast(d.message)})"
-                            :disabled="syncing"
-                            class="btn-ghost" style="padding:5px 10px;font-size:12px;color:#60a5fa;border-color:rgba(59,130,246,0.2)">
+                        <button @click="syncing=true;fetch('/sync/'+acc.id,{method:'POST'}).then(r=>r.json()).then(d=>{syncing=false;swalSuccess(d.message)})"
+                            :disabled="syncing" class="btn btn-ghost" style="font-size:12px;padding:5px 10px;color:#60a5fa;border-color:rgba(59,130,246,0.15)">
                             <svg class="w-3.5 h-3.5" :class="syncing?'animate-spin':''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                             <span x-text="syncing?'Sync...':'Sync'"></span>
                         </button>
-
-                        <!-- Toggle active -->
-                        <button @click="
-                            fetch('/ad-accounts/'+id+'/toggle',{method:'POST'})
-                            .then(r=>r.json())
-                            .then(d=>{isActive=d.is_active;showToast(d.message)})"
-                            :class="isActive?'bg-blue-600':''"
-                            class="relative w-9 h-5 rounded-full transition-colors flex-shrink-0"
-                            style="border:1px solid rgba(255,255,255,0.1)">
-                            <span :class="isActive?'translate-x-4':'translate-x-0.5'"
-                                class="absolute top-0.5 left-0 w-3.5 h-3.5 bg-white rounded-full transition-transform shadow-sm"></span>
+                        <button @click="fetch('/ad-accounts/'+acc.id+'/toggle',{method:'POST'}).then(r=>r.json()).then(d=>{isActive=d.is_active;swalSuccess(d.message)})"
+                            :class="isActive?'bg-blue-600':''" class="relative w-9 h-5 rounded-full transition-colors flex-shrink-0 cursor-pointer"
+                            style="border:1px solid rgba(255,255,255,0.08)">
+                            <span :class="isActive?'translate-x-4':'translate-x-0.5'" class="absolute top-0.5 left-0 w-3.5 h-3.5 bg-white rounded-full transition-transform shadow"></span>
                         </button>
-
-                        <!-- Delete -->
-                        <button @click="
-                            if(confirm('Hapus akun ini?')){
-                                fetch('/ad-accounts/'+id,{method:'DELETE'})
-                                .then(r=>r.json())
-                                .then(d=>{showToast(d.message);accounts=accounts.filter(a=>a.id!==id)})
-                            }"
-                            class="p-1.5 text-slate-600 hover:text-red-400 transition rounded-lg hover:bg-red-400/10">
+                        <button @click="swalConfirm({title:'Hapus akun ini?',text:acc.name}).then(r=>{if(r.isConfirmed)fetch('/ad-accounts/'+acc.id,{method:'DELETE'}).then(r=>r.json()).then(d=>{swalSuccess(d.message);accounts=accounts.filter(a=>a.id!==acc.id)})})"
+                            class="p-1.5 rounded-lg transition" style="color:var(--text-muted)" @mouseover="$el.style.color='#f87171'" @mouseout="$el.style.color='var(--text-muted)'">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                         </button>
                     </div>
                 </div>
             </template>
-
-            <!-- Empty search result -->
             <div x-show="filtered.length===0&&search" class="py-12 text-center">
-                <p class="text-sm text-slate-500">Tidak ada akun yang cocok dengan "<span x-text="search" class="text-white"></span>"</p>
-                <p class="text-xs text-slate-600 mt-1">Coba cari dengan nama lain atau ID akun iklan</p>
-                <a href="/credentials" class="text-xs text-blue-400 hover:text-blue-300 mt-3 inline-block">
-                    Akun tidak ditemukan? Fetch dari kredensial →
-                </a>
+                <p class="text-sm text-slate-500">Tidak ada akun untuk "<span x-text="search" class="text-white"></span>"</p>
+                <a href="/credentials" class="text-xs text-blue-400 hover:text-blue-300 mt-2 inline-block">Fetch akun dari kredensial →</a>
             </div>
         </div>
-
         {{ else }}
         <div class="flex flex-col items-center justify-center py-16 text-center">
-            <div class="w-12 h-12 rounded-2xl flex items-center justify-center mb-3" style="background:rgba(255,255,255,0.04)">
-                <svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16"/></svg>
+            <div class="w-12 h-12 rounded-2xl flex items-center justify-center mb-3" style="background:rgba(255,255,255,0.03)">
+                <svg class="w-6 h-6" style="color:var(--text-muted)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16"/></svg>
             </div>
             <p class="text-sm text-slate-500">Belum ada ad account</p>
-            <a href="/credentials" class="text-xs text-blue-400 hover:text-blue-300 mt-2">
-                Tambah kredensial dan fetch akun →
-            </a>
+            <a href="/credentials" class="text-xs text-blue-400 hover:text-blue-300 mt-2">Tambah kredensial dan fetch akun →</a>
         </div>
         {{ end }}
     </div>
