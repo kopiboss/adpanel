@@ -9,8 +9,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 
 	"adpanel/models"
+)
+
+const (
+	metaVideoUploadBase = "https://graph-video.facebook.com"
+	chunkSize           = 4 * 1024 * 1024 // 4MB per chunk
 )
 
 // UploadImage uploads an image to Meta and returns the image hash
@@ -23,18 +29,15 @@ func UploadImage(accessToken, adAccountID, filePath string) (string, error) {
 
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
-
 	_ = writer.WriteField("access_token", accessToken)
 
 	part, err := writer.CreateFormFile("filename", filePath)
 	if err != nil {
 		return "", fmt.Errorf("create form file: %w", err)
 	}
-
 	if _, err = io.Copy(part, file); err != nil {
 		return "", fmt.Errorf("copy file: %w", err)
 	}
-
 	writer.Close()
 
 	reqURL := fmt.Sprintf("%s/%s/act_%s/adimages", metaAPIBase, metaAPIVersion, adAccountID)
@@ -50,10 +53,7 @@ func UploadImage(accessToken, adAccountID, filePath string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("read response: %w", err)
-	}
+	body, _ := io.ReadAll(resp.Body)
 
 	var result struct {
 		Images map[string]struct {
@@ -68,111 +68,142 @@ func UploadImage(accessToken, adAccountID, filePath string) (string, error) {
 	if err := json.Unmarshal(body, &result); err != nil {
 		return "", fmt.Errorf("parse response: %w", err)
 	}
-
 	if result.Error.Code != 0 {
 		return "", fmt.Errorf("meta error %d: %s", result.Error.Code, result.Error.Message)
 	}
-
 	for _, img := range result.Images {
 		return img.Hash, nil
 	}
-
-	return "", fmt.Errorf("no image hash in response")
+	return "", fmt.Errorf("no image hash in response: %s", string(body))
 }
 
-// UploadVideoResumable streams a video to Meta using resumable upload API
-// without buffering the entire file in memory
+// UploadVideoResumable uploads a video to Meta using the 3-phase resumable upload API.
+// Ref: https://developers.facebook.com/docs/marketing-api/reference/ad-video/
 func UploadVideoResumable(accessToken, adAccountID, filePath string, creative *models.Creative) error {
-	// Step 1: Initialize upload session
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
 		return fmt.Errorf("stat file: %w", err)
 	}
 	fileSize := fileInfo.Size()
+	fileName := fileInfo.Name()
 
-	initURL := fmt.Sprintf("%s/%s/act_%s/advideos", metaAPIBase, metaAPIVersion, adAccountID)
-	initData := url.Values{
+	// ── Phase 1: START ───────────────────────────────────────────────────────
+	// Endpoint untuk start & finish pakai graph.facebook.com
+	startURL := fmt.Sprintf("%s/%s/act_%s/advideos",
+		metaAPIBase, metaAPIVersion, adAccountID)
+
+	startData := url.Values{
 		"access_token": {accessToken},
 		"upload_phase": {"start"},
-		"file_size":    {fmt.Sprintf("%d", fileSize)},
-		"file_name":    {fileInfo.Name()},
+		"file_size":    {strconv.FormatInt(fileSize, 10)},
+		"file_name":    {fileName},
 	}
 
-	resp, err := http.PostForm(initURL, initData)
+	startResp, err := http.PostForm(startURL, startData)
 	if err != nil {
-		return fmt.Errorf("init upload: %w", err)
+		return fmt.Errorf("start upload request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer startResp.Body.Close()
 
-	var initResult struct {
-		VideoID      string `json:"video_id"`
-		StartOffset  string `json:"start_offset"`
-		EndOffset    string `json:"end_offset"`
-		UploadDomain string `json:"upload_domain"`
-		Error        struct {
+	var startResult struct {
+		VideoID         string `json:"video_id"`
+		UploadSessionID string `json:"upload_session_id"`
+		StartOffset     string `json:"start_offset"`
+		EndOffset       string `json:"end_offset"`
+		UploadDomain    string `json:"upload_domain"`
+		Error           struct {
 			Message string `json:"message"`
 			Code    int    `json:"code"`
 		} `json:"error"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&initResult); err != nil {
-		return fmt.Errorf("parse init response: %w", err)
+	startBody, _ := io.ReadAll(startResp.Body)
+	if err := json.Unmarshal(startBody, &startResult); err != nil {
+		return fmt.Errorf("parse start response: %w — body: %s", err, string(startBody))
+	}
+	if startResult.Error.Code != 0 {
+		return fmt.Errorf("start error %d: %s", startResult.Error.Code, startResult.Error.Message)
 	}
 
-	if initResult.Error.Code != 0 {
-		return fmt.Errorf("init error %d: %s", initResult.Error.Code, initResult.Error.Message)
+	videoID := startResult.VideoID
+	// upload_session_id bisa ada di field VideoID atau UploadSessionID
+	uploadSessionID := startResult.UploadSessionID
+	if uploadSessionID == "" {
+		uploadSessionID = videoID
+	}
+	if uploadSessionID == "" {
+		return fmt.Errorf("no upload_session_id or video_id in start response: %s", string(startBody))
 	}
 
-	videoID := initResult.VideoID
+	// Tentukan base URL untuk chunk transfer
+	// Meta merekomendasikan graph-video.facebook.com untuk chunk transfer
+	transferBase := metaVideoUploadBase
+	if startResult.UploadDomain != "" {
+		transferBase = "https://" + startResult.UploadDomain
+	}
+	transferURL := fmt.Sprintf("%s/%s/act_%s/advideos",
+		transferBase, metaAPIVersion, adAccountID)
 
-	// Step 2: Upload chunks
+	// Parse offsets
+	startOffset, _ := strconv.ParseInt(startResult.StartOffset, 10, 64)
+	endOffset, _ := strconv.ParseInt(startResult.EndOffset, 10, 64)
+
+	// ── Phase 2: TRANSFER CHUNKS ─────────────────────────────────────────────
 	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("open file: %w", err)
 	}
 	defer file.Close()
 
-	var startOffset, endOffset int64
-	fmt.Sscanf(initResult.StartOffset, "%d", &startOffset)
-	fmt.Sscanf(initResult.EndOffset, "%d", &endOffset)
-
 	for startOffset < fileSize {
-		chunkSize := endOffset - startOffset
-		chunk := make([]byte, chunkSize)
-
-		if _, err := file.Seek(startOffset, io.SeekStart); err != nil {
-			return fmt.Errorf("seek: %w", err)
+		// Hitung ukuran chunk
+		size := endOffset - startOffset
+		if size <= 0 {
+			size = chunkSize
 		}
+		if startOffset+size > fileSize {
+			size = fileSize - startOffset
+		}
+
+		// Seek ke posisi yang benar
+		if _, err := file.Seek(startOffset, io.SeekStart); err != nil {
+			return fmt.Errorf("seek to %d: %w", startOffset, err)
+		}
+
+		// Baca chunk
+		chunk := make([]byte, size)
 		n, err := io.ReadFull(file, chunk)
 		if err != nil && err != io.ErrUnexpectedEOF {
-			return fmt.Errorf("read chunk: %w", err)
+			return fmt.Errorf("read chunk at %d: %w", startOffset, err)
 		}
 		chunk = chunk[:n]
 
+		// Build multipart body
 		var chunkBuf bytes.Buffer
 		mw := multipart.NewWriter(&chunkBuf)
 		_ = mw.WriteField("access_token", accessToken)
 		_ = mw.WriteField("upload_phase", "transfer")
-		_ = mw.WriteField("video_id", videoID)
-		_ = mw.WriteField("start_offset", fmt.Sprintf("%d", startOffset))
+		_ = mw.WriteField("upload_session_id", uploadSessionID)
+		_ = mw.WriteField("start_offset", strconv.FormatInt(startOffset, 10))
 
-		pw, _ := mw.CreateFormFile("video_file_chunk", fileInfo.Name())
-		pw.Write(chunk)
+		fw, err := mw.CreateFormFile("video_file_chunk", fileName)
+		if err != nil {
+			return fmt.Errorf("create chunk form file: %w", err)
+		}
+		if _, err := fw.Write(chunk); err != nil {
+			return fmt.Errorf("write chunk: %w", err)
+		}
 		mw.Close()
 
-		uploadURL := fmt.Sprintf("https://%s/%s/act_%s/advideos",
-			initResult.UploadDomain, metaAPIVersion, adAccountID)
-		if initResult.UploadDomain == "" {
-			uploadURL = fmt.Sprintf("%s/%s/act_%s/advideos",
-				metaAPIBase, metaAPIVersion, adAccountID)
+		req, err := http.NewRequest(http.MethodPost, transferURL, &chunkBuf)
+		if err != nil {
+			return fmt.Errorf("create chunk request: %w", err)
 		}
-
-		req, _ := http.NewRequest(http.MethodPost, uploadURL, &chunkBuf)
 		req.Header.Set("Content-Type", mw.FormDataContentType())
 
 		chunkResp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			return fmt.Errorf("upload chunk: %w", err)
+			return fmt.Errorf("send chunk: %w", err)
 		}
 
 		var chunkResult struct {
@@ -183,56 +214,76 @@ func UploadVideoResumable(accessToken, adAccountID, filePath string, creative *m
 				Code    int    `json:"code"`
 			} `json:"error"`
 		}
-		json.NewDecoder(chunkResp.Body).Decode(&chunkResult)
+		chunkBody, _ := io.ReadAll(chunkResp.Body)
 		chunkResp.Body.Close()
 
+		if err := json.Unmarshal(chunkBody, &chunkResult); err != nil {
+			return fmt.Errorf("parse chunk response: %w — body: %s", err, string(chunkBody))
+		}
 		if chunkResult.Error.Code != 0 {
-			return fmt.Errorf("chunk error %d: %s", chunkResult.Error.Code, chunkResult.Error.Message)
+			return fmt.Errorf("chunk error %d: %s — session: %s offset: %d body: %s",
+				chunkResult.Error.Code, chunkResult.Error.Message,
+				uploadSessionID, startOffset, string(chunkBody))
 		}
 
-		fmt.Sscanf(chunkResult.StartOffset, "%d", &startOffset)
-		fmt.Sscanf(chunkResult.EndOffset, "%d", &endOffset)
+		// Update offsets dari response
+		newStart, _ := strconv.ParseInt(chunkResult.StartOffset, 10, 64)
+		newEnd, _ := strconv.ParseInt(chunkResult.EndOffset, 10, 64)
+
+		// Proteksi infinite loop: kalau offset tidak bergerak, pakai chunkSize
+		if newStart == startOffset {
+			startOffset += int64(n)
+			endOffset = startOffset + chunkSize
+		} else {
+			startOffset = newStart
+			endOffset = newEnd
+		}
 	}
 
-	// Step 3: Finish upload
+	// ── Phase 3: FINISH ──────────────────────────────────────────────────────
+	finishURL := fmt.Sprintf("%s/%s/act_%s/advideos",
+		metaAPIBase, metaAPIVersion, adAccountID)
+
 	finishData := url.Values{
-		"access_token": {accessToken},
-		"upload_phase": {"finish"},
-		"video_id":     {videoID},
+		"access_token":      {accessToken},
+		"upload_phase":      {"finish"},
+		"upload_session_id": {uploadSessionID},
+		"title":             {fileName},
 	}
 
-	finishResp, err := http.PostForm(
-		fmt.Sprintf("%s/%s/act_%s/advideos", metaAPIBase, metaAPIVersion, adAccountID),
-		finishData,
-	)
+	finishResp, err := http.PostForm(finishURL, finishData)
 	if err != nil {
 		return fmt.Errorf("finish upload: %w", err)
 	}
 	defer finishResp.Body.Close()
 
 	var finishResult struct {
-		Success bool `json:"success"`
+		Success bool   `json:"success"`
+		VideoID string `json:"video_id"`
 		Error   struct {
 			Message string `json:"message"`
 			Code    int    `json:"code"`
 		} `json:"error"`
 	}
-
-	json.NewDecoder(finishResp.Body).Decode(&finishResult)
-
+	finishBody, _ := io.ReadAll(finishResp.Body)
+	if err := json.Unmarshal(finishBody, &finishResult); err != nil {
+		return fmt.Errorf("parse finish response: %w — body: %s", err, string(finishBody))
+	}
 	if finishResult.Error.Code != 0 {
 		return fmt.Errorf("finish error %d: %s", finishResult.Error.Code, finishResult.Error.Message)
 	}
 
-	// Step 4: Get thumbnail
-	thumbnailURL := fmt.Sprintf(
-		"%s/%s/%s?fields=picture&access_token=%s",
-		metaAPIBase, metaAPIVersion, videoID, accessToken,
-	)
+	// Gunakan video_id dari finish response jika ada, fallback ke uploadSessionID
+	finalVideoID := finishResult.VideoID
+	if finalVideoID == "" {
+		finalVideoID = videoID
+	}
 
-	thumbResp, err := http.Get(thumbnailURL)
-	var thumbnail string
-	if err == nil {
+	// ── Get thumbnail ─────────────────────────────────────────────────────────
+	thumbnail := ""
+	thumbURL := fmt.Sprintf("%s/%s/%s?fields=picture&access_token=%s",
+		metaAPIBase, metaAPIVersion, finalVideoID, accessToken)
+	if thumbResp, err := http.Get(thumbURL); err == nil {
 		defer thumbResp.Body.Close()
 		var thumbResult struct {
 			Picture string `json:"picture"`
@@ -242,13 +293,12 @@ func UploadVideoResumable(accessToken, adAccountID, filePath string, creative *m
 		}
 	}
 
-	return models.UpdateCreativeAfterUpload(creative.ID, "", videoID, thumbnail, "done")
+	return models.UpdateCreativeAfterUpload(creative.ID, "", finalVideoID, thumbnail, "done")
 }
 
-// ProcessImageUpload handles image upload job
+// ProcessImageUpload handles image upload background job
 func ProcessImageUpload(creative *models.Creative, accessToken, adAccountID, tempFilePath string) {
 	defer os.Remove(tempFilePath)
-
 	_ = models.UpdateCreativeStatus(creative.ID, "uploading", "")
 
 	hash, err := UploadImage(accessToken, adAccountID, tempFilePath)
@@ -256,14 +306,12 @@ func ProcessImageUpload(creative *models.Creative, accessToken, adAccountID, tem
 		_ = models.UpdateCreativeStatus(creative.ID, "failed", err.Error())
 		return
 	}
-
 	_ = models.UpdateCreativeAfterUpload(creative.ID, hash, "", "", "done")
 }
 
-// ProcessVideoUpload handles video upload job
+// ProcessVideoUpload handles video upload background job
 func ProcessVideoUpload(creative *models.Creative, accessToken, adAccountID, tempFilePath string) {
 	defer os.Remove(tempFilePath)
-
 	_ = models.UpdateCreativeStatus(creative.ID, "uploading", "")
 
 	if err := UploadVideoResumable(accessToken, adAccountID, tempFilePath, creative); err != nil {
