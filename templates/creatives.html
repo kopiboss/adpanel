@@ -122,12 +122,33 @@
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
         {{ range .creatives }}
         <div class="card group overflow-hidden hover:border-white/12 transition-colors" id="creative-{{ .ID }}">
-            <div class="aspect-video relative overflow-hidden" style="background:#070c18">
+            <div class="aspect-video relative overflow-hidden" style="background:#0a0f1e">
                 {{ if .ThumbnailURL }}
-                <img src="{{ .ThumbnailURL }}" class="w-full h-full object-cover">
+                <img src="/creatives/{{ .ID }}/thumbnail" class="w-full h-full object-cover"
+                    onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                <div class="w-full h-full absolute inset-0 items-center justify-center" style="display:none">
+                    {{ if eq .Type "video" }}
+                    <div class="text-center">
+                        <div class="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-1" style="background:rgba(255,255,255,0.1)">
+                            <svg class="w-6 h-6 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        </div>
+                    </div>
+                    {{ else }}
+                    <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14"/></svg>
+                    {{ end }}
+                </div>
                 {{ else }}
-                <div class="w-full h-full flex items-center justify-center text-3xl">
-                    {{ if eq .Type "video" }}🎬{{ else }}🖼{{ end }}
+                <div class="w-full h-full flex items-center justify-center flex-col gap-1">
+                    {{ if eq .Type "video" }}
+                    <div class="w-12 h-12 rounded-full flex items-center justify-center" style="background:rgba(139,92,246,0.15)">
+                        <svg class="w-6 h-6 text-violet-400 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                    <p class="text-xs text-slate-600 mt-1">No thumbnail</p>
+                    {{ else }}
+                    <div class="w-12 h-12 rounded-full flex items-center justify-center" style="background:rgba(59,130,246,0.15)">
+                        <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    </div>
+                    {{ end }}
                 </div>
                 {{ end }}
                 <!-- Hover overlay -->
