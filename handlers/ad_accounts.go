@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -14,14 +15,9 @@ func ListAdAccounts(c *gin.Context) {
 	userID := middleware.GetCurrentUserID(c)
 	accounts, err := models.ListAdAccountsByUser(userID)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "ad_accounts.html", gin.H{
-			"error": "Gagal memuat ad accounts",
-		})
-		return
+		accounts = []models.AdAccount{}
 	}
-
 	creds, _ := models.ListCredentialsByUser(userID)
-
 	c.HTML(http.StatusOK, "ad_accounts.html", gin.H{
 		"title":       "Ad Accounts",
 		"accounts":    accounts,
@@ -30,60 +26,55 @@ func ListAdAccounts(c *gin.Context) {
 	})
 }
 
+type saveAdAccountsPayload struct {
+	CredentialID uint64             `json:"credential_id"`
+	Accounts     []adAccountInput   `json:"accounts"`
+}
+
+type adAccountInput struct {
+	MetaAccountID string `json:"meta_account_id"`
+	Name          string `json:"name"`
+	Currency      string `json:"currency"`
+	Timezone      string `json:"timezone"`
+	AccountStatus int    `json:"account_status"`
+}
+
 func SaveAdAccounts(c *gin.Context) {
 	userID := middleware.GetCurrentUserID(c)
 
-	credIDStr := c.PostForm("credential_id")
-	credID, err := strconv.ParseUint(credIDStr, 10, 64)
+	body, err := c.GetRawData()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid credential ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal baca request"})
+		return
+	}
+
+	var payload saveAdAccountsPayload
+	if err := json.Unmarshal(body, &payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format JSON tidak valid"})
+		return
+	}
+
+	if payload.CredentialID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "credential_id wajib diisi"})
 		return
 	}
 
 	// Verify credential belongs to user
-	cred, err := models.GetCredentialByID(credID, userID)
-	if err != nil {
+	cred, err := models.GetCredentialByID(payload.CredentialID, userID)
+	if err != nil || cred == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Kredensial tidak ditemukan"})
 		return
 	}
 
-	type AccountInput struct {
-		MetaAccountID string `json:"meta_account_id"`
-		Name          string `json:"name"`
-		Currency      string `json:"currency"`
-		Timezone      string `json:"timezone"`
-		AccountStatus int    `json:"account_status"`
+	if len(payload.Accounts) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Pilih minimal 1 ad account"})
+		return
 	}
-
-	var accounts []AccountInput
-	if err := c.ShouldBindJSON(&accounts); err != nil {
-		// Try form data fallback
-		metaIDs := c.PostFormArray("meta_account_ids[]")
-		names := c.PostFormArray("names[]")
-		currencies := c.PostFormArray("currencies[]")
-		timezones := c.PostFormArray("timezones[]")
-
-		for i, metaID := range metaIDs {
-			acc := AccountInput{MetaAccountID: metaID, AccountStatus: 1}
-			if i < len(names) {
-				acc.Name = names[i]
-			}
-			if i < len(currencies) {
-				acc.Currency = currencies[i]
-			}
-			if i < len(timezones) {
-				acc.Timezone = timezones[i]
-			}
-			accounts = append(accounts, acc)
-		}
-	}
-
-	_ = cred
 
 	saved := 0
-	for _, acc := range accounts {
+	for _, acc := range payload.Accounts {
 		adAccount := &models.AdAccount{
-			CredentialID:  credID,
+			CredentialID:  payload.CredentialID,
 			UserID:        userID,
 			MetaAccountID: acc.MetaAccountID,
 			Name:          acc.Name,
@@ -92,7 +83,6 @@ func SaveAdAccounts(c *gin.Context) {
 			AccountStatus: acc.AccountStatus,
 			IsActive:      true,
 		}
-
 		if _, err := models.CreateAdAccount(adAccount); err == nil {
 			saved++
 		}
@@ -106,44 +96,34 @@ func SaveAdAccounts(c *gin.Context) {
 
 func ToggleAdAccount(c *gin.Context) {
 	userID := middleware.GetCurrentUserID(c)
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
 		return
 	}
-
 	account, err := models.GetAdAccountByID(id, userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Ad account tidak ditemukan"})
 		return
 	}
-
 	newState := !account.IsActive
 	if err := models.UpdateAdAccountActive(id, userID, newState); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update status"})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"is_active": newState,
-		"message":   "Status berhasil diubah",
-	})
+	c.JSON(http.StatusOK, gin.H{"is_active": newState, "message": "Status berhasil diubah"})
 }
 
 func DeleteAdAccount(c *gin.Context) {
 	userID := middleware.GetCurrentUserID(c)
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
 		return
 	}
-
 	if err := models.DeleteAdAccount(id, userID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus ad account"})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"message": "Ad account berhasil dihapus"})
 }
