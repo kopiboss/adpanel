@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"strconv"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 
 func ListCreatives(c *gin.Context) {
 	userID := middleware.GetCurrentUserID(c)
-
 	accounts, _ := models.ListActiveAdAccountsByUser(userID)
 
 	accountID := uint64(0)
@@ -46,12 +46,11 @@ func UploadCreative(c *gin.Context) {
 
 	accountIDStr := c.PostForm("ad_account_id")
 	accountID, err := strconv.ParseUint(accountIDStr, 10, 64)
-	if err != nil {
+	if err != nil || accountID == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ad account ID"})
 		return
 	}
 
-	// Verify account belongs to user
 	account, err := models.GetAdAccountByID(accountID, userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Ad account tidak ditemukan"})
@@ -65,40 +64,38 @@ func UploadCreative(c *gin.Context) {
 	}
 	defer file.Close()
 
-	// Determine file type
-	ext := filepath.Ext(header.Filename)
+	ext := strings.ToLower(filepath.Ext(header.Filename))
 	creativeType := ""
 	maxSize := int64(0)
 
 	switch ext {
 	case ".jpg", ".jpeg", ".png":
 		creativeType = "image"
-		maxSize = 30 * 1024 * 1024 // 30MB
+		maxSize = 30 * 1024 * 1024
 	case ".mp4":
 		creativeType = "video"
-		maxSize = 1024 * 1024 * 1024 // 1GB
+		maxSize = 1024 * 1024 * 1024
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Tipe file tidak didukung. Gunakan JPG, PNG, atau MP4"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tidak didukung. Gunakan JPG, PNG, atau MP4"})
 		return
 	}
 
 	if header.Size > maxSize {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("File terlalu besar. Max: %dMB", maxSize/1024/1024),
+			"error": fmt.Sprintf("File terlalu besar. Maksimal %dMB", maxSize/1024/1024),
 		})
 		return
 	}
 
 	// Save to temp file
-	tempDir := os.TempDir()
-	tempFile := filepath.Join(tempDir, fmt.Sprintf("adpanel_%d_%d%s", userID, time.Now().UnixNano(), ext))
+	tempFile := filepath.Join(os.TempDir(),
+		fmt.Sprintf("adpanel_%d_%d%s", userID, time.Now().UnixNano(), ext))
 
 	f, err := os.Create(tempFile)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan file sementara"})
 		return
 	}
-
 	if _, err := f.ReadFrom(file); err != nil {
 		f.Close()
 		os.Remove(tempFile)
@@ -107,7 +104,6 @@ func UploadCreative(c *gin.Context) {
 	}
 	f.Close()
 
-	// Create creative record
 	creative := &models.Creative{
 		AdAccountID:  accountID,
 		UserID:       userID,
@@ -125,7 +121,6 @@ func UploadCreative(c *gin.Context) {
 	}
 	creative.ID = creativeID
 
-	// Get access token
 	cred, err := models.GetCredentialByIDAdmin(account.CredentialID)
 	if err != nil {
 		os.Remove(tempFile)
@@ -140,19 +135,18 @@ func UploadCreative(c *gin.Context) {
 		return
 	}
 
-	// Launch upload in background
 	if creativeType == "image" {
 		go services.ProcessImageUpload(creative, accessToken, account.MetaAccountID, tempFile)
 	} else {
 		go services.ProcessVideoUpload(creative, accessToken, account.MetaAccountID, tempFile)
 	}
 
+	// Return immediately after record created - frontend polls for status
 	c.JSON(http.StatusOK, gin.H{
 		"creative_id": creativeID,
 		"name":        header.Filename,
 		"type":        creativeType,
-		"status":      "pending",
-		"message":     "Upload dimulai, memantau status...",
+		"message":     "Upload dimulai",
 	})
 }
 
@@ -172,7 +166,7 @@ func UploadToMultipleAccounts(c *gin.Context) {
 		return
 	}
 
-	ext := filepath.Ext(header.Filename)
+	ext := strings.ToLower(filepath.Ext(header.Filename))
 	creativeType := ""
 	switch ext {
 	case ".jpg", ".jpeg", ".png":
@@ -180,11 +174,10 @@ func UploadToMultipleAccounts(c *gin.Context) {
 	case ".mp4":
 		creativeType = "video"
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Tipe file tidak didukung"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tidak didukung"})
 		return
 	}
 
-	// Save temp file once
 	tempFile := filepath.Join(os.TempDir(),
 		fmt.Sprintf("adpanel_%d_%d%s", userID, time.Now().UnixNano(), ext))
 	f, err := os.Create(tempFile)
@@ -210,58 +203,37 @@ func UploadToMultipleAccounts(c *gin.Context) {
 		if err != nil {
 			continue
 		}
-
 		go func(accountID uint64) {
 			r := uploadResult{AccountID: accountID}
-
 			account, err := models.GetAdAccountByID(accountID, userID)
 			if err != nil {
-				r.Status = "failed"
-				resultCh <- r
-				return
+				r.Status = "failed"; resultCh <- r; return
 			}
 			r.AccountName = account.Name
-
 			cred, err := models.GetCredentialByIDAdmin(account.CredentialID)
 			if err != nil {
-				r.Status = "failed"
-				resultCh <- r
-				return
+				r.Status = "failed"; resultCh <- r; return
 			}
-
 			accessToken, err := services.Decrypt(cred.AccessTokenEnc)
 			if err != nil {
-				r.Status = "failed"
-				resultCh <- r
-				return
+				r.Status = "failed"; resultCh <- r; return
 			}
-
 			creative := &models.Creative{
-				AdAccountID:  accountID,
-				UserID:       userID,
-				Name:         header.Filename,
-				Type:         creativeType,
-				FileSize:     header.Size,
-				UploadStatus: "pending",
+				AdAccountID: accountID, UserID: userID,
+				Name: header.Filename, Type: creativeType,
+				FileSize: header.Size, UploadStatus: "pending",
 			}
-
 			creativeID, err := models.CreateCreative(creative)
 			if err != nil {
-				r.Status = "failed"
-				resultCh <- r
-				return
+				r.Status = "failed"; resultCh <- r; return
 			}
 			creative.ID = creativeID
 			r.CreativeID = creativeID
 
-			// Copy temp file for this account
 			accountTempFile := fmt.Sprintf("%s.%d", tempFile, accountID)
 			if err := copyFile(tempFile, accountTempFile); err != nil {
-				r.Status = "failed"
-				resultCh <- r
-				return
+				r.Status = "failed"; resultCh <- r; return
 			}
-
 			r.Status = "uploading"
 			resultCh <- r
 
@@ -274,35 +246,39 @@ func UploadToMultipleAccounts(c *gin.Context) {
 	}
 
 	for range accountIDsStr {
-		r := <-resultCh
-		results = append(results, r)
+		results = append(results, <-resultCh)
 	}
+	go func() { time.Sleep(30 * time.Second); os.Remove(tempFile) }()
 
-	// Remove original temp file after all goroutines have copied it
-	go func() {
-		time.Sleep(30 * time.Second)
-		os.Remove(tempFile)
-	}()
-
-	c.JSON(http.StatusOK, gin.H{
-		"results": results,
-		"message": "Upload dimulai untuk semua akun yang dipilih",
-	})
+	c.JSON(http.StatusOK, gin.H{"results": results, "message": "Upload dimulai"})
 }
 
+// GetCreativeStatus - query by ID only (no user_id filter) karena polling bisa dari context berbeda
 func GetCreativeStatus(c *gin.Context) {
 	userID := middleware.GetCurrentUserID(c)
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil {
+	if err != nil || id == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
 		return
 	}
 
 	creative, err := models.GetCreativeByID(id, userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Creative tidak ditemukan"})
-		return
+		// Try without user_id as fallback (in case of session edge case)
+		creative, err = models.GetCreativeByIDOnly(id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":         "Creative tidak ditemukan",
+				"upload_status": "pending",
+			})
+			return
+		}
+		// Security check: must belong to requesting user
+		if creative.UserID != userID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Akses ditolak"})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -317,18 +293,15 @@ func GetCreativeStatus(c *gin.Context) {
 
 func DeleteCreativeHandler(c *gin.Context) {
 	userID := middleware.GetCurrentUserID(c)
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
 		return
 	}
-
 	if err := models.DeleteCreative(id, userID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus creative"})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"message": "Creative berhasil dihapus"})
 }
 
@@ -338,13 +311,11 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	defer in.Close()
-
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
 	defer out.Close()
-
 	_, err = out.ReadFrom(in)
 	return err
 }
