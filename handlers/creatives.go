@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -373,7 +373,7 @@ func RefreshCreativeThumbnail(c *gin.Context) {
 }
 
 // ProxyThumbnail - proxy thumbnail dari Meta CDN agar bisa ditampilkan di browser
-// tanpa CORS/hotlink block
+// tanpa CORS/hotlink block. Auto-refresh jika thumbnail masih placeholder.
 func ProxyThumbnail(c *gin.Context) {
 	userID := middleware.GetCurrentUserID(c)
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
@@ -391,18 +391,38 @@ func ProxyThumbnail(c *gin.Context) {
 		}
 	}
 
-	if creative.ThumbnailURL == "" {
-		c.Status(http.StatusNotFound)
+	thumbnailURL := creative.ThumbnailURL
+
+	// Kalau thumbnail masih placeholder GIF atau kosong, coba refresh dulu
+	if thumbnailURL == "" || isMetaPlaceholder(thumbnailURL) {
+		if creative.MetaVideoID != "" {
+			// Coba ambil credential untuk refresh
+			if account, err := models.GetAdAccountByID(creative.AdAccountID, userID); err == nil {
+				if cred, err := models.GetCredentialByIDAdmin(account.CredentialID); err == nil {
+					if accessToken, err := services.Decrypt(cred.AccessTokenEnc); err == nil {
+						if newURL, err := services.FetchVideoThumbnail(accessToken, creative.MetaVideoID); err == nil && newURL != "" {
+							thumbnailURL = newURL
+							// Simpan ke DB untuk request berikutnya
+							_ = models.UpdateCreativeAfterUpload(creative.ID, "", creative.MetaVideoID, newURL, "done")
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if thumbnailURL == "" || isMetaPlaceholder(thumbnailURL) {
+		// Return 204 No Content - browser tidak perlu retry
+		c.Status(http.StatusNoContent)
 		return
 	}
 
-	// Fetch dari Meta CDN
-	req, err := http.NewRequest(http.MethodGet, creative.ThumbnailURL, nil)
+	// Fetch dari Meta CDN dan proxy ke browser
+	req, err := http.NewRequest(http.MethodGet, thumbnailURL, nil)
 	if err != nil {
 		c.Status(http.StatusBadGateway)
 		return
 	}
-	// Set headers agar fbcdn mau serve
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; AdPanel/1.0)")
 	req.Header.Set("Referer", "https://www.facebook.com/")
 
@@ -413,15 +433,19 @@ func ProxyThumbnail(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	// Teruskan content-type dan body
 	contentType := resp.Header.Get("Content-Type")
 	if contentType == "" {
 		contentType = "image/jpeg"
 	}
 
-	// Cache 1 jam
 	c.Header("Cache-Control", "public, max-age=3600")
 	c.Header("Content-Type", contentType)
 	c.Status(http.StatusOK)
 	io.Copy(c.Writer, resp.Body)
+}
+
+// isMetaPlaceholder deteksi URL placeholder Meta (GIF animasi loading, bukan thumbnail asli)
+func isMetaPlaceholder(u string) bool {
+	lower := strings.ToLower(u)
+	return strings.HasSuffix(lower, ".gif") || strings.Contains(u, "rsrc.php")
 }
