@@ -1,110 +1,150 @@
 {{ define "content" }}
-<div class="space-y-6">
-    <!-- Welcome -->
-    <div class="bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl p-6">
-        <h2 class="text-xl font-bold">Selamat datang, {{ if .user }}{{ .user.Name }}{{ end }}! 👋</h2>
-        <p class="text-blue-200 text-sm mt-1">Pantau dan kelola kampanye Meta Ads Anda dari sini.</p>
-    </div>
+<div class="space-y-5">
 
-    <!-- Stats 7 hari terakhir -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <p class="text-xs text-slate-400 uppercase tracking-wide">Total Spend</p>
-            <p class="text-2xl font-bold text-white mt-1">{{ formatMoney .summary.TotalSpend .currency }}</p>
-            <p class="text-xs text-slate-500 mt-1">7 hari terakhir</p>
-        </div>
-        <div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <p class="text-xs text-slate-400 uppercase tracking-wide">Impressions</p>
-            <p class="text-2xl font-bold text-white mt-1">{{ .summary.TotalImpressions }}</p>
-        </div>
-        <div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <p class="text-xs text-slate-400 uppercase tracking-wide">Clicks</p>
-            <p class="text-2xl font-bold text-white mt-1">{{ .summary.TotalClicks }}</p>
-        </div>
-        <div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
-            <p class="text-xs text-slate-400 uppercase tracking-wide">Avg CTR</p>
-            <p class="text-2xl font-bold text-white mt-1">{{ printf "%.2f" .summary.AvgCTR }}%</p>
+    <!-- Welcome banner -->
+    <div class="rounded-2xl p-6 relative overflow-hidden" style="background:linear-gradient(135deg,#1e3a8a 0%,#1e1b4b 100%)">
+        <div class="absolute inset-0 opacity-10" style="background:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2280%22 cy=%2220%22 r=%2240%22 fill=%22white%22/><circle cx=%2210%22 cy=%2280%22 r=%2230%22 fill=%22white%22/></svg>')"></div>
+        <div class="relative">
+            <p class="text-blue-300 text-xs font-medium uppercase tracking-widest mb-1">Selamat datang kembali</p>
+            <h2 class="text-xl font-bold text-white">{{ if .user }}{{ .user.Name }}{{ end }} 👋</h2>
+            <p class="text-blue-200/70 text-sm mt-1">Pantau performa kampanye Meta Ads Anda hari ini.</p>
         </div>
     </div>
 
-    <!-- Quick actions & Ad Accounts -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Stats -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="stat-card">
+            <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Total Spend</p>
+            <p class="text-2xl font-bold text-white mt-2">{{ formatMoney .summary.TotalSpend .currency }}</p>
+            <p class="text-xs text-slate-600 mt-1">7 hari terakhir</p>
+        </div>
+        <div class="stat-card">
+            <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Impressions</p>
+            <p class="text-2xl font-bold text-white mt-2">{{ .summary.TotalImpressions }}</p>
+            <p class="text-xs text-slate-600 mt-1">7 hari terakhir</p>
+        </div>
+        <div class="stat-card">
+            <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Clicks</p>
+            <p class="text-2xl font-bold text-white mt-2">{{ .summary.TotalClicks }}</p>
+            <p class="text-xs text-slate-600 mt-1">7 hari terakhir</p>
+        </div>
+        <div class="stat-card">
+            <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Avg CTR</p>
+            <p class="text-2xl font-bold text-white mt-2">{{ printf "%.2f" .summary.AvgCTR }}%</p>
+            <p class="text-xs text-slate-600 mt-1">7 hari terakhir</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <!-- Quick Actions -->
-        <div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
-            <h3 class="font-semibold mb-4">Quick Actions</h3>
-            <div class="grid grid-cols-2 gap-3">
-                <a href="/campaigns/new" class="flex flex-col items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 rounded-xl p-4 transition text-center">
-                    <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                    <span class="text-xs text-slate-300">Buat Kampanye</span>
+        <div class="card p-5">
+            <h3 class="text-sm font-semibold text-white mb-4">Quick Actions</h3>
+            <div class="space-y-2">
+                <a href="/campaigns/new" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition group">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:rgba(59,130,246,0.15)">
+                        <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-white">Buat Kampanye</p>
+                        <p class="text-xs text-slate-500">Launch iklan baru</p>
+                    </div>
+                    <svg class="w-4 h-4 text-slate-600 ml-auto group-hover:text-slate-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                 </a>
-                <a href="/creatives" class="flex flex-col items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 rounded-xl p-4 transition text-center">
-                    <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    <span class="text-xs text-slate-300">Upload Creative</span>
+                <a href="/creatives" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition group">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:rgba(139,92,246,0.15)">
+                        <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-white">Upload Creative</p>
+                        <p class="text-xs text-slate-500">Gambar & video iklan</p>
+                    </div>
+                    <svg class="w-4 h-4 text-slate-600 ml-auto group-hover:text-slate-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                 </a>
-                <a href="/analytics" class="flex flex-col items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 rounded-xl p-4 transition text-center">
-                    <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                    <span class="text-xs text-slate-300">Lihat Analytics</span>
+                <a href="/analytics" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition group">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:rgba(34,197,94,0.12)">
+                        <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-white">Analytics</p>
+                        <p class="text-xs text-slate-500">Laporan performa</p>
+                    </div>
+                    <svg class="w-4 h-4 text-slate-600 ml-auto group-hover:text-slate-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                 </a>
-                <a href="/credentials" class="flex flex-col items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 rounded-xl p-4 transition text-center">
-                    <svg class="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-                    <span class="text-xs text-slate-300">Tambah Kredensial</span>
+                <a href="/credentials" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition group">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:rgba(234,179,8,0.12)">
+                        <svg class="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-white">Kredensial</p>
+                        <p class="text-xs text-slate-500">Kelola akses Meta</p>
+                    </div>
+                    <svg class="w-4 h-4 text-slate-600 ml-auto group-hover:text-slate-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                 </a>
             </div>
         </div>
 
         <!-- Ad Accounts -->
-        <div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
+        <div class="card p-5 lg:col-span-2">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="font-semibold">Ad Accounts</h3>
-                <a href="/ad-accounts" class="text-xs text-blue-400 hover:text-blue-300">Kelola →</a>
+                <h3 class="text-sm font-semibold text-white">Ad Accounts</h3>
+                <a href="/ad-accounts" class="text-xs text-blue-400 hover:text-blue-300 transition">Kelola semua →</a>
             </div>
+            {{ if .accounts }}
             <div class="space-y-2">
                 {{ range .accounts }}
-                <div class="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
-                    <div>
-                        <p class="text-sm font-medium text-white">{{ .Name }}</p>
-                        <p class="text-xs text-slate-400">{{ .Currency }} · {{ .Timezone }}</p>
+                <div class="flex items-center justify-between p-3 rounded-xl" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05)">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm" style="background:rgba(59,130,246,0.12)">📊</div>
+                        <div>
+                            <p class="text-sm font-medium text-white">{{ .Name }}</p>
+                            <p class="text-xs text-slate-500">{{ .Currency }} · {{ .Timezone }}</p>
+                        </div>
                     </div>
                     {{ if .IsActive }}
-                    <span class="w-2 h-2 bg-green-400 rounded-full"></span>
+                    <span class="badge-green">Aktif</span>
                     {{ else }}
-                    <span class="w-2 h-2 bg-slate-500 rounded-full"></span>
+                    <span class="badge-gray">Nonaktif</span>
                     {{ end }}
-                </div>
-                {{ else }}
-                <div class="py-6 text-center">
-                    <p class="text-sm text-slate-500">Belum ada ad account</p>
-                    <a href="/credentials" class="text-xs text-blue-400 hover:text-blue-300 mt-1 inline-block">
-                        Tambah kredensial dulu →
-                    </a>
                 </div>
                 {{ end }}
             </div>
+            {{ else }}
+            <div class="flex flex-col items-center justify-center py-10 text-center">
+                <div class="w-12 h-12 rounded-xl mb-3 flex items-center justify-center" style="background:rgba(255,255,255,0.04)">
+                    <svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16"/></svg>
+                </div>
+                <p class="text-sm text-slate-500">Belum ada ad account</p>
+                <a href="/credentials" class="text-xs text-blue-400 hover:text-blue-300 mt-2">Tambah kredensial dulu →</a>
+            </div>
+            {{ end }}
         </div>
     </div>
 
     <!-- Recent Sync -->
     {{ if .recent_logs }}
-    <div class="bg-slate-800 border border-slate-700 rounded-xl">
-        <div class="p-5 border-b border-slate-700 flex items-center justify-between">
-            <h3 class="font-semibold">Sync Terbaru</h3>
+    <div class="card">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-white/5">
+            <h3 class="text-sm font-semibold text-white">Sync Terbaru</h3>
             <a href="/sync-logs" class="text-xs text-blue-400 hover:text-blue-300">Lihat semua →</a>
         </div>
-        <div class="divide-y divide-slate-700">
+        <div>
             {{ range .recent_logs }}
-            <div class="px-5 py-3 flex items-center justify-between text-sm">
-                <div>
-                    <span class="text-white">{{ .AdAccountName }}</span>
-                    <span class="text-slate-400 ml-2 text-xs">{{ .SyncType }}</span>
+            <div class="table-row flex items-center justify-between px-5 py-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-1.5 h-1.5 rounded-full flex-shrink-0 {{ if eq .Status "success" }}bg-green-400{{ else if eq .Status "failed" }}bg-red-400{{ else }}bg-yellow-400{{ end }}"></div>
+                    <div>
+                        <span class="text-sm text-white">{{ .AdAccountName }}</span>
+                        <span class="text-xs text-slate-500 ml-2">{{ .SyncType }}</span>
+                    </div>
                 </div>
                 <div class="flex items-center gap-3">
-                    <span class="text-slate-500 text-xs">{{ .CreatedAt.Format "02 Jan 15:04" }}</span>
+                    <span class="text-xs text-slate-600">{{ .CreatedAt.Format "02 Jan 15:04" }}</span>
                     {{ if eq .Status "success" }}
-                    <span class="text-green-400 text-xs">✓ Sukses</span>
+                    <span class="badge-green">Sukses</span>
                     {{ else if eq .Status "failed" }}
-                    <span class="text-red-400 text-xs">✗ Gagal</span>
+                    <span class="badge-red">Gagal</span>
                     {{ else }}
-                    <span class="text-yellow-400 text-xs">⟳ Running</span>
+                    <span class="badge-yellow">Running</span>
                     {{ end }}
                 </div>
             </div>
