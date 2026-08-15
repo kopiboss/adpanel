@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id" x-data="{ sidebarOpen: true }">
+<html lang="id" x-data>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,87 +7,91 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        [x-cloak] { display: none !important; }
-        * { -webkit-font-smoothing: antialiased; }
-        body { background: #0a0f1e; }
-
-        .sidebar-link {
-            display: flex; align-items: center; gap: 10px;
-            padding: 9px 12px; border-radius: 8px;
-            color: #94a3b8; font-size: 13.5px; font-weight: 500;
-            transition: all 0.15s; text-decoration: none;
+        [x-cloak]{display:none!important}
+        *{-webkit-font-smoothing:antialiased}
+        body{background:#070c18}
+        :root{
+            --bg-card:#0f1623;
+            --bg-card2:#131c2e;
+            --border:rgba(255,255,255,0.06);
+            --text-muted:#4b5775;
+            --text-sub:#64748b;
         }
-        .sidebar-link:hover { background: rgba(255,255,255,0.06); color: #e2e8f0; }
-        .sidebar-link.active { background: rgba(59,130,246,0.15); color: #60a5fa; }
-        .sidebar-link.active svg { color: #3b82f6; }
-
-        .card { background: #111827; border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; }
-        .card-sm { background: #111827; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; }
-
-        .btn-primary {
-            background: #2563eb; color: white; padding: 8px 16px;
-            border-radius: 8px; font-size: 13.5px; font-weight: 500;
-            border: none; cursor: pointer; transition: background 0.15s;
-            display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
-        }
-        .btn-primary:hover { background: #1d4ed8; }
-
-        .btn-ghost {
-            background: rgba(255,255,255,0.05); color: #94a3b8; padding: 8px 14px;
-            border-radius: 8px; font-size: 13px; font-weight: 500;
-            border: 1px solid rgba(255,255,255,0.08); cursor: pointer;
-            transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
-            text-decoration: none;
-        }
-        .btn-ghost:hover { background: rgba(255,255,255,0.09); color: #e2e8f0; }
-
-        .input {
-            background: #0d1424; border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px; padding: 9px 14px; color: white;
-            font-size: 13.5px; width: 100%; outline: none; transition: border 0.15s;
-        }
-        .input:focus { border-color: #3b82f6; }
-        .input::placeholder { color: #475569; }
-
-        .badge-green { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.2); padding: 2px 8px; border-radius: 20px; font-size: 11.5px; font-weight: 500; }
-        .badge-yellow { background: rgba(234,179,8,0.12); color: #facc15; border: 1px solid rgba(234,179,8,0.2); padding: 2px 8px; border-radius: 20px; font-size: 11.5px; font-weight: 500; }
-        .badge-red { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.2); padding: 2px 8px; border-radius: 20px; font-size: 11.5px; font-weight: 500; }
-        .badge-blue { background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.2); padding: 2px 8px; border-radius: 20px; font-size: 11.5px; font-weight: 500; }
-        .badge-gray { background: rgba(255,255,255,0.06); color: #64748b; border: 1px solid rgba(255,255,255,0.08); padding: 2px 8px; border-radius: 20px; font-size: 11.5px; font-weight: 500; }
-
-        .stat-card { background: linear-gradient(135deg, #111827 0%, #0f172a 100%); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 20px 24px; }
-
-        .table-row { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.1s; }
-        .table-row:hover { background: rgba(255,255,255,0.02); }
-        .table-row:last-child { border-bottom: none; }
-
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
-
-        .gradient-text { background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-
-        select.input option { background: #111827; }
+        .sidebar-link{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:#64748b;font-size:13px;font-weight:500;transition:all .15s;text-decoration:none}
+        .sidebar-link:hover{background:rgba(255,255,255,0.05);color:#cbd5e1}
+        .sidebar-link.active{background:rgba(59,130,246,0.12);color:#60a5fa}
+        .card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px}
+        .card2{background:var(--bg-card2);border:1px solid var(--border);border-radius:10px}
+        .stat-card{background:linear-gradient(135deg,#0f1623,#0c1220);border:1px solid var(--border);border-radius:14px;padding:20px 24px}
+        .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;border:none;text-decoration:none}
+        .btn-primary{background:#2563eb;color:#fff}.btn-primary:hover{background:#1d4ed8}
+        .btn-ghost{background:rgba(255,255,255,0.04);color:#94a3b8;border:1px solid var(--border)}.btn-ghost:hover{background:rgba(255,255,255,0.08);color:#e2e8f0}
+        .btn-danger{background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2)}.btn-danger:hover{background:rgba(239,68,68,0.18)}
+        .btn-success{background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2)}.btn-success:hover{background:rgba(34,197,94,0.18)}
+        .input{background:#0a1020;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:9px 14px;color:#e2e8f0;font-size:13px;width:100%;outline:none;transition:border .15s}
+        .input:focus{border-color:#3b82f6}.input::placeholder{color:#2d3748}
+        select.input option{background:#0f1623}
+        .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11.5px;font-weight:500;border:1px solid}
+        .badge-green{background:rgba(34,197,94,0.1);color:#4ade80;border-color:rgba(34,197,94,0.2)}
+        .badge-yellow{background:rgba(234,179,8,0.1);color:#facc15;border-color:rgba(234,179,8,0.2)}
+        .badge-red{background:rgba(239,68,68,0.1);color:#f87171;border-color:rgba(239,68,68,0.2)}
+        .badge-blue{background:rgba(59,130,246,0.1);color:#60a5fa;border-color:rgba(59,130,246,0.2)}
+        .badge-gray{background:rgba(255,255,255,0.05);color:#64748b;border-color:rgba(255,255,255,0.08)}
+        .table-row{border-bottom:1px solid var(--border);transition:background .1s}
+        .table-row:hover{background:rgba(255,255,255,0.02)}
+        .table-row:last-child{border-bottom:none}
+        ::-webkit-scrollbar{width:3px;height:3px}
+        ::-webkit-scrollbar-track{background:transparent}
+        ::-webkit-scrollbar-thumb{background:#1e2940;border-radius:2px}
+        /* SweetAlert2 dark theme */
+        .swal2-popup{background:#0f1623!important;border:1px solid rgba(255,255,255,0.08)!important;color:#e2e8f0!important;border-radius:16px!important}
+        .swal2-title{color:#f1f5f9!important;font-size:18px!important}
+        .swal2-html-container{color:#94a3b8!important;font-size:14px!important}
+        .swal2-confirm{background:#2563eb!important;border-radius:8px!important;font-size:13px!important;padding:9px 22px!important}
+        .swal2-cancel{background:rgba(255,255,255,0.06)!important;color:#94a3b8!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:8px!important;font-size:13px!important;padding:9px 22px!important}
+        .swal2-cancel:hover{background:rgba(255,255,255,0.1)!important}
+        .swal2-icon{border-color:transparent!important}
+        .swal2-icon.swal2-warning{border-color:rgba(234,179,8,0.3)!important;color:#facc15!important}
+        .swal2-icon.swal2-error{border-color:rgba(239,68,68,0.3)!important;color:#f87171!important}
+        .swal2-icon.swal2-success{border-color:rgba(34,197,94,0.3)!important}
+        .swal2-icon.swal2-success [class^=swal2-success-line]{background:#4ade80!important}
+        .swal2-icon.swal2-success .swal2-success-ring{border-color:rgba(34,197,94,0.3)!important}
+        .swal2-timer-progress-bar{background:#3b82f6!important}
+        .swal2-backdrop-show{backdrop-filter:blur(4px)!important;background:rgba(0,0,0,0.6)!important}
     </style>
+    <script>
+    // Global SweetAlert2 helpers - pakai ini di seluruh app
+    const Toast = Swal.mixin({
+        toast:true, position:'top-end', showConfirmButton:false,
+        timer:3000, timerProgressBar:true,
+        didOpen:(t)=>{ t.onmouseenter=Swal.stopTimer; t.onmouseleave=Swal.resumeTimer }
+    });
+    const swalConfirm = (opts={}) => Swal.fire({
+        icon:'warning', showCancelButton:true,
+        confirmButtonText:'Ya, lanjutkan', cancelButtonText:'Batal',
+        reverseButtons:true, ...opts
+    });
+    const swalSuccess = (msg) => Toast.fire({icon:'success',title:msg});
+    const swalError = (msg) => Toast.fire({icon:'error',title:msg});
+    const swalInfo = (msg) => Toast.fire({icon:'info',title:msg});
+    </script>
 </head>
 <body class="text-slate-200 min-h-screen">
 <div class="flex h-screen overflow-hidden">
 
     <!-- Sidebar -->
-    <aside class="w-56 flex-shrink-0 flex flex-col border-r border-white/5" style="background:#0d1117">
-        <!-- Logo -->
-        <div class="px-5 py-5 border-b border-white/5">
-            <div class="flex items-center gap-2.5">
-                <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-white" style="background:linear-gradient(135deg,#2563eb,#7c3aed)">A</div>
-                <span class="font-semibold text-white text-sm tracking-wide">AdPanel</span>
+    <aside class="w-52 flex-shrink-0 flex flex-col border-r" style="background:#09101e;border-color:var(--border)">
+        <div class="px-4 py-5 border-b" style="border-color:var(--border)">
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-white" style="background:linear-gradient(135deg,#1d4ed8,#6d28d9)">A</div>
+                <span class="font-semibold text-white text-sm">AdPanel</span>
             </div>
         </div>
-
-        <!-- Nav -->
-        <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <nav class="flex-1 px-2.5 py-3 space-y-0.5 overflow-y-auto">
             {{ if .is_admin }}
-            <p class="text-xs text-slate-600 uppercase tracking-widest px-3 pt-1 pb-2 font-medium">Admin</p>
+            <p class="text-xs uppercase tracking-widest px-2.5 pt-1 pb-2 font-medium" style="color:var(--text-muted)">Admin</p>
             <a href="/admin" class="sidebar-link {{ if eq .title "Admin Dashboard" }}active{{ end }}">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-3a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1v-7z"/></svg>
                 Dashboard
@@ -101,7 +105,7 @@
                 Settings
             </a>
             {{ else }}
-            <p class="text-xs text-slate-600 uppercase tracking-widest px-3 pt-1 pb-2 font-medium">Menu</p>
+            <p class="text-xs uppercase tracking-widest px-2.5 pt-1 pb-2 font-medium" style="color:var(--text-muted)">Menu</p>
             <a href="/dashboard" class="sidebar-link {{ if eq .title "Dashboard" }}active{{ end }}">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-3a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1v-7z"/></svg>
                 Dashboard
@@ -132,24 +136,22 @@
             </a>
             {{ end }}
         </nav>
-
-        <!-- User info -->
-        <div class="px-3 py-3 border-t border-white/5">
-            <div class="flex items-center gap-3 px-2 py-2 rounded-lg">
+        <div class="px-2.5 py-3 border-t" style="border-color:var(--border)">
+            <div class="flex items-center gap-2.5 px-2 py-2">
                 <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                    style="background:linear-gradient(135deg,#2563eb,#7c3aed)">
+                    style="background:linear-gradient(135deg,#1d4ed8,#6d28d9)">
                     {{ if .is_admin }}A{{ else }}{{ if .user }}{{ slice .user.Name 0 1 }}{{ end }}{{ end }}
                 </div>
                 <div class="flex-1 min-w-0">
                     <p class="text-xs font-semibold text-white truncate">
                         {{ if .is_admin }}Super Admin{{ else }}{{ if .user }}{{ .user.Name }}{{ end }}{{ end }}
                     </p>
-                    <p class="text-xs text-slate-500 truncate">
+                    <p class="text-xs truncate" style="color:var(--text-sub)">
                         {{ if .is_admin }}Administrator{{ else }}{{ if .user }}{{ .user.Email }}{{ end }}{{ end }}
                     </p>
                 </div>
             </div>
-            <a href="/logout" class="sidebar-link text-red-400 hover:text-red-300 mt-1" style="color:#f87171">
+            <a href="/logout" class="sidebar-link mt-1" style="color:#f87171">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                 Logout
             </a>
@@ -158,33 +160,22 @@
 
     <!-- Main -->
     <main class="flex-1 flex flex-col overflow-hidden">
-        <!-- Topbar -->
-        <header class="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-white/5" style="background:#0d1117">
-            <div>
-                <h1 class="text-base font-semibold text-white">{{ .title }}</h1>
-            </div>
-            <div class="flex items-center gap-3">
-                {{ if .is_admin }}
-                <span class="badge-red">Super Admin</span>
-                {{ end }}
-            </div>
+        <header class="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b" style="background:#09101e;border-color:var(--border)">
+            <h1 class="text-sm font-semibold text-white">{{ .title }}</h1>
+            {{ if .is_admin }}<span class="badge badge-red">Super Admin</span>{{ end }}
         </header>
-
-        <!-- Flash -->
         {{ if .error }}
-        <div class="mx-6 mt-4 px-4 py-3 rounded-xl text-sm flex items-center gap-2" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#fca5a5">
+        <div class="mx-6 mt-4 px-4 py-3 rounded-xl text-sm flex items-center gap-2 badge-red" style="border-radius:10px">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             {{ .error }}
         </div>
         {{ end }}
         {{ if .success }}
-        <div class="mx-6 mt-4 px-4 py-3 rounded-xl text-sm flex items-center gap-2" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#86efac">
+        <div class="mx-6 mt-4 px-4 py-3 rounded-xl text-sm flex items-center gap-2 badge-green" style="border-radius:10px">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             {{ .success }}
         </div>
         {{ end }}
-
-        <!-- Content -->
         <div class="flex-1 overflow-y-auto p-6">
             {{ template "content" . }}
         </div>
