@@ -94,7 +94,53 @@ func GetCampaignInsights(adAccountID, userID uint64, dateFrom, dateTo string) ([
 	return insights, err
 }
 
-func GetUserInsightSummary(userID uint64, dateFrom, dateTo string) (*InsightSummary, error) {
+// GetCampaignInsightMap mengembalikan map[meta_campaign_id] → InsightSummary
+// untuk ditampilkan inline di halaman kampanye
+func GetCampaignInsightMap(userID uint64, dateFrom, dateTo string) (map[string]*InsightSummary, error) {
+	type row struct {
+		MetaCampaignID   string  `db:"meta_campaign_id"`
+		TotalSpend       float64 `db:"total_spend"`
+		TotalImpressions int64   `db:"total_impressions"`
+		TotalClicks      int64   `db:"total_clicks"`
+		TotalReach       int64   `db:"total_reach"`
+		AvgCTR           float64 `db:"avg_ctr"`
+		AvgCPC           float64 `db:"avg_cpc"`
+		AvgCPM           float64 `db:"avg_cpm"`
+	}
+	var rows []row
+	err := database.DB.Select(&rows, `
+		SELECT
+			c.meta_campaign_id,
+			COALESCE(SUM(i.spend),0)       AS total_spend,
+			COALESCE(SUM(i.impressions),0) AS total_impressions,
+			COALESCE(SUM(i.clicks),0)      AS total_clicks,
+			COALESCE(SUM(i.reach),0)       AS total_reach,
+			COALESCE(AVG(i.ctr),0)         AS avg_ctr,
+			COALESCE(AVG(i.cpc),0)         AS avg_cpc,
+			COALESCE(AVG(i.cpm),0)         AS avg_cpm
+		FROM insights i
+		JOIN campaigns c ON i.campaign_id = c.id
+		WHERE i.user_id = ? AND i.date BETWEEN ? AND ?
+		GROUP BY c.meta_campaign_id`,
+		userID, dateFrom, dateTo)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]*InsightSummary, len(rows))
+	for _, r := range rows {
+		result[r.MetaCampaignID] = &InsightSummary{
+			TotalSpend:       r.TotalSpend,
+			TotalImpressions: r.TotalImpressions,
+			TotalClicks:      r.TotalClicks,
+			TotalReach:       r.TotalReach,
+			AvgCTR:           r.AvgCTR,
+			AvgCPC:           r.AvgCPC,
+			AvgCPM:           r.AvgCPM,
+		}
+	}
+	return result, nil
+}
 	var s InsightSummary
 	err := database.DB.Get(&s,
 		`SELECT
