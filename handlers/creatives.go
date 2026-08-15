@@ -253,7 +253,7 @@ func UploadToMultipleAccounts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"results": results, "message": "Upload dimulai"})
 }
 
-// GetCreativeStatus - query by ID only (no user_id filter) karena polling bisa dari context berbeda
+// GetCreativeStatus - polling endpoint untuk status upload creative
 func GetCreativeStatus(c *gin.Context) {
 	userID := middleware.GetCurrentUserID(c)
 	idStr := c.Param("id")
@@ -263,18 +263,21 @@ func GetCreativeStatus(c *gin.Context) {
 		return
 	}
 
+	// Coba dengan user_id dulu
 	creative, err := models.GetCreativeByID(id, userID)
 	if err != nil {
-		// Try without user_id as fallback (in case of session edge case)
+		// Fallback tanpa user_id
 		creative, err = models.GetCreativeByIDOnly(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":         "Creative tidak ditemukan",
+			// Record belum ada di DB (race condition antara INSERT dan polling)
+			// Return 200 dengan status pending supaya frontend terus poll
+			c.JSON(http.StatusOK, gin.H{
+				"id":            id,
 				"upload_status": "pending",
 			})
 			return
 		}
-		// Security check: must belong to requesting user
+		// Security: pastikan milik user ini
 		if creative.UserID != userID {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Akses ditolak"})
 			return
