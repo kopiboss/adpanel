@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"adpanel/models"
@@ -282,44 +283,15 @@ func UploadVideoResumable(accessToken, adAccountID, filePath string, creative *m
 
 	// ── Get thumbnail (retry karena Meta butuh waktu proses) ──────────────────
 	thumbnail := ""
-	for i := 0; i < 5; i++ {
-		thumbURL := fmt.Sprintf("%s/%s/%s?fields=picture,thumbnails&access_token=%s",
-			metaAPIBase, metaAPIVersion, finalVideoID, accessToken)
-		if thumbResp, err := http.Get(thumbURL); err == nil {
-			var thumbResult struct {
-				Picture    string `json:"picture"`
-				Thumbnails struct {
-					Data []struct {
-						URI    string `json:"uri"`
-						Height int    `json:"height"`
-						Width  int    `json:"width"`
-					} `json:"data"`
-				} `json:"thumbnails"`
-			}
-			if json.NewDecoder(thumbResp.Body).Decode(&thumbResult) == nil {
-				thumbResp.Body.Close()
-				// Pilih thumbnail terbesar
-				if thumbResult.Picture != "" {
-					thumbnail = thumbResult.Picture
-					break
-				}
-				for _, t := range thumbResult.Thumbnails.Data {
-					if t.URI != "" {
-						thumbnail = t.URI
-						break
-					}
-				}
-				if thumbnail != "" {
-					break
-				}
-			} else {
-				thumbResp.Body.Close()
-			}
-		}
-		// Tunggu sebelum retry
-		if i < 4 {
-			waitSeconds := []int{3, 5, 10, 15}
-			time.Sleep(time.Duration(waitSeconds[i]) * time.Second)
+	for i := 0; i < 6; i++ {
+		// Tunggu dulu sebelum coba — video perlu waktu transcode
+		waitSeconds := []int{5, 10, 15, 20, 30, 30}
+		time.Sleep(time.Duration(waitSeconds[i]) * time.Second)
+
+		t, err := FetchVideoThumbnail(accessToken, finalVideoID)
+		if err == nil && t != "" {
+			thumbnail = t
+			break
 		}
 	}
 
@@ -349,9 +321,10 @@ func ProcessVideoUpload(creative *models.Creative, accessToken, adAccountID, tem
 	}
 }
 
-// FetchVideoThumbnail mengambil thumbnail URL untuk video yang sudah ada di Meta
+// FetchVideoThumbnail mengambil thumbnail URL untuk video yang sudah ada di Meta.
+// Meta kadang return GIF placeholder saat video masih diproses — kita skip itu.
 func FetchVideoThumbnail(accessToken, videoID string) (string, error) {
-	thumbURL := fmt.Sprintf("%s/%s/%s?fields=picture,thumbnails&access_token=%s",
+	thumbURL := fmt.Sprintf("%s/%s/%s?fields=picture,thumbnails{uri,width,height}&access_token=%s",
 		metaAPIBase, metaAPIVersion, videoID, accessToken)
 
 	resp, err := http.Get(thumbURL)
@@ -364,7 +337,9 @@ func FetchVideoThumbnail(accessToken, videoID string) (string, error) {
 		Picture    string `json:"picture"`
 		Thumbnails struct {
 			Data []struct {
-				URI string `json:"uri"`
+				URI    string `json:"uri"`
+				Width  int    `json:"width"`
+				Height int    `json:"height"`
 			} `json:"data"`
 		} `json:"thumbnails"`
 	}
@@ -373,13 +348,32 @@ func FetchVideoThumbnail(accessToken, videoID string) (string, error) {
 		return "", err
 	}
 
-	if result.Picture != "" {
-		return result.Picture, nil
-	}
+	// Pilih thumbnail terbesar dari thumbnails.data (lebih reliable dari picture)
+	// Ini adalah frame asli video, bukan placeholder
+	bestURI := ""
+	bestSize := 0
 	for _, t := range result.Thumbnails.Data {
-		if t.URI != "" {
-			return t.URI, nil
+		size := t.Width * t.Height
+		if size > bestSize && t.URI != "" && !isPlaceholderURL(t.URI) {
+			bestSize = size
+			bestURI = t.URI
 		}
 	}
-	return "", nil
+	if bestURI != "" {
+		return bestURI, nil
+	}
+
+	// Fallback ke picture, tapi skip kalau itu placeholder GIF
+	if result.Picture != "" && !isPlaceholderURL(result.Picture) {
+		return result.Picture, nil
+	}
+
+	return "", nil // Video belum siap, coba lagi nanti
+}
+
+// isPlaceholderURL deteksi apakah URL adalah placeholder Meta (GIF animasi loading)
+func isPlaceholderURL(u string) bool {
+	// Meta placeholder biasanya .gif atau mengandung path tertentu
+	return strings.HasSuffix(strings.ToLower(u), ".gif") ||
+		strings.Contains(u, "rsrc.php")
 }
