@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -41,7 +40,6 @@ func main() {
 
 	r := gin.Default()
 
-	// Build template set with all templates named by relative path
 	funcMap := template.FuncMap{
 		"divf": func(a, b int64) float64 {
 			if b == 0 {
@@ -63,30 +61,65 @@ func main() {
 			}
 			return string(runes[i:j])
 		},
-		// Currency helpers — auto-detect dari currency field ad account
-		"formatMoney":   helpers.FormatMoney,   // formatMoney amount currency
-		"formatBudget":  helpers.FormatBudget,  // formatBudget smallestUnit currency
-		"currencySymbol": helpers.CurrencySymbol, // currencySymbol currency
+		"gt0":            func(n int) bool { return n > 0 },
+		"formatMoney":    helpers.FormatMoney,
+		"formatBudget":   helpers.FormatBudget,
+		"currencySymbol": helpers.CurrencySymbol,
 	}
 
-	tmpl := template.New("").Funcs(funcMap)
-	patterns := []string{
-		"templates/*.html",
-		"templates/auth/*.html",
-		"templates/admin/*.html",
-	}
-	for _, pattern := range patterns {
-		files, _ := filepath.Glob(pattern)
-		for _, f := range files {
-			rel, _ := filepath.Rel("templates", f)
-			content, err := os.ReadFile(f)
-			if err != nil {
-				log.Fatalf("Failed to read template %s: %v", f, err)
-			}
-			template.Must(tmpl.New(rel).Funcs(funcMap).Parse(string(content)))
+	readFile := func(path string) string {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			log.Fatalf("Cannot read template %s: %v", path, err)
 		}
+		return string(b)
 	}
-	r.SetHTMLTemplate(tmpl)
+
+	// Setiap halaman punya template set sendiri:
+	// - Auth pages: hanya file itu sendiri (standalone HTML)
+	// - Page lain: layout.html + page file
+	// Dengan cara ini setiap set hanya punya SATU {{ define "content" }}
+	// sehingga tidak ada conflict antar halaman.
+
+	layout := readFile("templates/layout.html")
+
+	makePageTemplate := func(pageFile string) *template.Template {
+		t := template.Must(
+			template.New("layout.html").Funcs(funcMap).Parse(layout),
+		)
+		template.Must(t.New(pageFile).Funcs(funcMap).Parse(readFile("templates/" + pageFile)))
+		return t
+	}
+
+	makeAuthTemplate := func(pageFile string) *template.Template {
+		return template.Must(
+			template.New(pageFile).Funcs(funcMap).Parse(readFile("templates/" + pageFile)),
+		)
+	}
+
+	templateMap := map[string]*template.Template{
+		// Auth (standalone, no layout)
+		"auth/login.html":    makeAuthTemplate("auth/login.html"),
+		"auth/register.html": makeAuthTemplate("auth/register.html"),
+		"auth/pending.html":  makeAuthTemplate("auth/pending.html"),
+
+		// Admin pages
+		"admin/dashboard.html": makePageTemplate("admin/dashboard.html"),
+		"admin/users.html":     makePageTemplate("admin/users.html"),
+		"admin/settings.html":  makePageTemplate("admin/settings.html"),
+
+		// User pages
+		"dashboard.html":       makePageTemplate("dashboard.html"),
+		"credentials.html":     makePageTemplate("credentials.html"),
+		"ad_accounts.html":     makePageTemplate("ad_accounts.html"),
+		"campaigns.html":       makePageTemplate("campaigns.html"),
+		"campaign_wizard.html": makePageTemplate("campaign_wizard.html"),
+		"creatives.html":       makePageTemplate("creatives.html"),
+		"analytics.html":       makePageTemplate("analytics.html"),
+		"sync_log.html":        makePageTemplate("sync_log.html"),
+	}
+
+	r.HTMLRender = &multiTemplateRenderer{templates: templateMap}
 
 	store := cookie.NewStore([]byte(config.App.AppSecret))
 	r.Use(sessions.Sessions("adpanel_session", store))
@@ -130,19 +163,16 @@ func main() {
 	usr.Use(middleware.RequireAuth(), middleware.RequireUser())
 	{
 		usr.GET("/dashboard", handlers.UserDashboard)
-
 		usr.GET("/credentials", handlers.ListCredentials)
 		usr.POST("/credentials", handlers.CreateCredential)
 		usr.POST("/credentials/:id", handlers.UpdateCredential)
 		usr.DELETE("/credentials/:id", handlers.DeleteCredential)
 		usr.GET("/credentials/:id/ad-accounts", handlers.FetchAdAccounts)
 		usr.GET("/credentials/:id/validate", handlers.ValidateToken)
-
 		usr.GET("/ad-accounts", handlers.ListAdAccounts)
 		usr.POST("/ad-accounts", handlers.SaveAdAccounts)
 		usr.POST("/ad-accounts/:id/toggle", handlers.ToggleAdAccount)
 		usr.DELETE("/ad-accounts/:id", handlers.DeleteAdAccount)
-
 		usr.GET("/campaigns", handlers.ListCampaigns)
 		usr.GET("/campaigns/new", handlers.ShowCampaignWizard)
 		usr.POST("/campaigns/launch", handlers.LaunchCampaign)
@@ -151,20 +181,16 @@ func main() {
 		usr.POST("/campaigns/:id/budget", handlers.UpdateCampaignBudget)
 		usr.POST("/campaigns/:id/duplicate", handlers.DuplicateCampaign)
 		usr.DELETE("/campaigns/:id", handlers.DeleteCampaignHandler)
-
 		usr.GET("/templates", handlers.ListTemplates)
 		usr.GET("/templates/:id", handlers.GetTemplate)
 		usr.DELETE("/templates/:id", handlers.DeleteTemplate)
-
 		usr.GET("/creatives", handlers.ListCreatives)
 		usr.POST("/creatives/upload", handlers.UploadCreative)
 		usr.POST("/creatives/upload-multi", handlers.UploadToMultipleAccounts)
 		usr.GET("/creatives/:id/status", handlers.GetCreativeStatus)
 		usr.DELETE("/creatives/:id", handlers.DeleteCreativeHandler)
-
 		usr.GET("/analytics", handlers.ShowAnalytics)
 		usr.GET("/analytics/export", handlers.ExportAnalyticsCSV)
-
 		usr.GET("/sync-logs", handlers.ListSyncLogs)
 		usr.POST("/sync/:id", handlers.SyncNow)
 	}
